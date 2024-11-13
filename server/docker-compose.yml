@@ -1,0 +1,28 @@
+services:
+  api-gateway:
+    build: ./api-gateway
+    image: api-gateway
+    container_name: api-gateway
+    ports:
+      - "3000:3000"
+
+  appointment-service:
+    build: ./appointment-service
+    image: appointment-service
+    container_name: appointment-service
+    ports:
+      - "3001:3001"
+
+  notification-service:
+    build: ./notification-service
+    image: notification-service
+    container_name: notification-service
+    ports:
+      - "3002:3002"
+
+  account-service:
+    build: ./account-service
+    image: account-service
+    container_name: account-service
+    ports:
+      - "3003:3003"

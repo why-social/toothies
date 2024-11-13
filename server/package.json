@@ -1,0 +1,24 @@
+{
+  "name": "test",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+	"buildAndRunAll": "docker-compose up --build -d",
+	"stopAll": "docker-compose down --rmi all",
+	"buildApi": "docker-compose up --build -d api-gateway",
+	"stopApi": "docker-compose stop api-gateway && docker-compose rm -f api-gateway",
+	"rebuildApi": "npm run stopApi && npm run buildApi",
+	"buildAppoint": "docker-compose up --build -d appointment-service",
+	"stopAppoint": "docker-compose stop appointment-service && docker-compose rm -f appointment-service",
+	"rebuildAppoint": "npm run stopAppoint && npm run buildAppoint",
+	"buildNotif": "docker-compose up --build -d notification-service",
+	"stopNotif": "docker-compose stop notification-service && docker-compose rm -f notification-service",
+	"rebuildNotif": "npm run stopNotif && npm run buildNotif",
+	"buildAccount": "docker-compose up --build -d account-service",
+	"stopAccount": "docker-compose stop account-service && docker-compose rm -f account-service",
+	"rebuildAccount": "npm run stopAccount && npm run buildAccount"
+  },
+  "author": "",
+  "license": "ISC"
+}
