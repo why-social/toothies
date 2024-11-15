@@ -13,4 +13,10 @@ For a detailed list of requirements, please visit the [Wiki](https://git.chalmer
 
 ### System architecture
 
-![Architecture Diagram](/doc/images/architecture.svg)
+<details>
+
+<summary>Component diagram</summary>
+
+![Architecture Diagram](images/architecture.svg)
+
+</details>
