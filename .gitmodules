@@ -1,0 +1,3 @@
+[submodule "doc"]
+	path = doc
+	url = https://git.chalmers.se/courses/dit355/2024/student_teams/dit356_2024_04/toothies.wiki.git
