@@ -5,7 +5,7 @@ FROM node:slim
 ENV NODE_ENV development
 
 # Setting up the work directory
-WORKDIR /appointment-service
+WORKDIR /proxy-service
 
 # Copying all the files in our project
 COPY . .

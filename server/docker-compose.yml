@@ -6,23 +6,16 @@ services:
     ports:
       - "3000:3000"
 
-  appointment-service:
-    build: ./appointment-service
-    image: appointment-service
-    container_name: appointment-service
+  proxy-service:
+    build: ./proxy-service
+    image: proxy-service
+    container_name: proxy-service
     ports:
       - "3001:3001"
 
-  notification-service:
-    build: ./notification-service
-    image: notification-service
-    container_name: notification-service
+  mqtt-service:
+    build: ./mqtt-service
+    image: mqtt-service
+    container_name: mqtt-service
     ports:
       - "3002:3002"
-
-  account-service:
-    build: ./account-service
-    image: account-service
-    container_name: account-service
-    ports:
-      - "3003:3003"
