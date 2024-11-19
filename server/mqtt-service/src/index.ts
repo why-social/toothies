@@ -2,7 +2,7 @@ import mqtt, {IClientOptions, IClientPublishOptions} from 'mqtt';
 import uniqid from 'uniqid';
 import Docker from 'dockerode';
 import os from 'os';
-import { HeartbeatMessage } from './types/HeartbeatMessage';
+import { Service } from './types/Service';
 
 let containerName:string;
 async function getContainerName(): Promise<string> {
@@ -50,8 +50,8 @@ mqttClient.on('connect', async () => {
 
 	// Heartbeat
 	setInterval(() => {
-		const msg = new HeartbeatMessage(serviceId, containerName);
-		const message = `${msg.toString()}`;
+		const serviceMsg = new Service(serviceId, containerName).toString();
+		const message = `${serviceMsg}`;
 		mqttClient.publish(heartbeatTopic, message, (err) => {
 			if (err) return console.error(`Failed to publish message: ${err.message}`);
 		});
