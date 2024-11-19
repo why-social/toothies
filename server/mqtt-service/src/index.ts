@@ -1,43 +1,77 @@
-import mqtt from 'mqtt';
+import mqtt, {IClientOptions, IClientPublishOptions} from 'mqtt';
+import uniqid from 'uniqid';
+import Docker from 'dockerode';
+import os from 'os';
+import { HeartbeatMessage } from './types/HeartbeatMessage';
+
+let containerName:string;
+async function getContainerName(): Promise<string> {
+    const docker = new Docker({ socketPath: '/var/run/docker.sock' });
+    try {
+        const containerId = os.hostname();
+        const container = docker.getContainer(containerId);
+        const data = await container.inspect();
+        return data.Name.replace('/', ''); // Remove leading slash
+    } catch (error) {
+        console.error('Error fetching container name:', error);
+        return 'unknown';
+    }
+}
 
 let counter:number = 1;
 
-const options = {
-	port: 1883,
-	host: 'broker.hivemq.com',
-	clientId: 'mqttjs_' + Math.random().toString(16).substr(2, 8),
-}
+const serviceId:string = uniqid();
 
-const mqttClient = mqtt.connect(options);
+const mqttOptions:IClientOptions = {
+	username: "service",
+	password: "Ilike2makewalks",
+};
 
-const requestTopic = 'request/topic';
-const responseTopic = 'response/topic';
+const mqttClient = mqtt.connect("tls://0fc2e0e6e10649f790f059e77c606dfe.s1.eu.hivemq.cloud:8883", mqttOptions);
 
-mqttClient.on('connect', () => {
-  console.log('Connected to MQTT broker');
+const requestTopic = `request/${serviceId}`;
+const responseTopic = `response/${serviceId}`;
+const heartbeatTopic = 'heartbeat/topic';
+const heartBeatInterval = 10000;
 
-  mqttClient.subscribe(requestTopic, (err) => {
-    if (err) {
-      console.error('Failed to subscribe to request topic');
-      return;
-    }
+console.log(`Service ${serviceId} is running, connecting to MQTT broker...`);
 
-    console.log(`Subscribed to ${requestTopic}`);
-  });
+mqttClient.on('connect', async () => {
+	console.log('Connected to MQTT broker');
+
+	containerName = await getContainerName();
+
+	// Subscribe to request topic
+	mqttClient.subscribe(requestTopic, (err) => {
+		if (err) return console.error('Failed to subscribe to request topic');
+
+		console.log(`Subscribed to ${requestTopic}`);
+	});
+
+	// Heartbeat
+	setInterval(() => {
+		const msg = new HeartbeatMessage(serviceId, containerName);
+		const message = `${msg.toString()}`;
+		mqttClient.publish(heartbeatTopic, message, (err) => {
+			if (err) return console.error(`Failed to publish message: ${err.message}`);
+		});
+	},heartBeatInterval);
 });
 
-mqttClient.on('message', (topic, message) => {
-  if (topic === requestTopic) {
-    console.log(`Received request: ${message.toString()}`);
+mqttClient.on('message', (topic, message) => {	
+	if (topic === requestTopic) {
+		console.log(`Received request: ${message.toString()}`);
 
-    const responseMessage = `Reply #${counter} to: ${message.toString()}`;
-    mqttClient.publish(responseTopic, responseMessage, (err) => {
-		if (err) {
-			console.error(`Failed to publish response message: ${err.message}`);
-			return;
+		const responseMessage = `Reply #${counter} to: "${message.toString()}" by service ${containerName}`;
+		const options:IClientPublishOptions = {
+			qos: 2
 		}
+
 		console.log(`Sent response: ${responseMessage}`);
-		counter++;
-	});
-  }
+
+		mqttClient.publish(responseTopic, responseMessage, options, (err) => {
+			if (err) return console.error(`Failed to publish response message: ${err.message}`);
+			counter++;
+		});
+	}
 });

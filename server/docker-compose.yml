@@ -16,6 +16,9 @@ services:
   mqtt-service:
     build: ./mqtt-service
     image: mqtt-service
-    container_name: mqtt-service
     ports:
-      - "3002:3002"
+      - "3002"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    deploy:
+      replicas: 1

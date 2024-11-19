@@ -5,6 +5,7 @@
 	"main": "index.js",
 	"scripts": {
 		"buildAndRunAll": "docker-compose up --build -d",
+		"logs": "docker-compose logs -f",
 		"stopAll": "docker-compose down --rmi all",
 		"rebuildAll": "npm run stopAll && npm run buildAndRunAll",
 		"buildApi": "docker-compose up --build -d api-gateway",
@@ -14,7 +15,7 @@
 		"stopProxy": "docker-compose stop proxy-service && docker-compose rm -f proxy-service",
 		"rebuildProxy": "npm run stopProxy && npm run buildProxy",
 		"buildMqtt": "docker-compose up --build -d mqtt-service",
-		"stopMqtt": "docker-compose stop mqtt-service && docker-compose rm -f mqtt-service",
+		"stopMqtt": "docker-compose stop mqtt-service && docker-compose rm -f mqtt-service && docker rmi $(docker images -q mqtt-service)",
 		"rebuildMqtt": "npm run stopMqtt && npm run buildMqtt"
 	},
 	"author": "",
