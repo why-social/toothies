@@ -53,6 +53,10 @@ export class ServicesList{
 		return this.services.has(serviceId);
 	}
 
+	public getServicesCount(): number{
+		return this.services.size;
+	}
+
 	public getRoundRobinService(): Service | null{
 		const servicesArray = Array.from(this.services.values());
         if (servicesArray.length === 0) {

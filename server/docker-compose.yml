@@ -5,19 +5,12 @@ services:
     container_name: api-gateway
     ports:
       - "3000:3000"
-
-  proxy-service:
-    build: ./proxy-service
-    image: proxy-service
-    container_name: proxy-service
+      
+  appointment-service:
+    build: ./appointment-service
+    image: appointment-service
     ports:
-      - "3001:3001"
-
-  mqtt-service:
-    build: ./mqtt-service
-    image: mqtt-service
-    ports:
-      - "3002"
+      - "3001"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     deploy:

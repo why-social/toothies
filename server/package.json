@@ -14,8 +14,8 @@
 		"buildProxy": "docker-compose up --build -d proxy-service",
 		"stopProxy": "docker-compose stop proxy-service && docker-compose rm -f proxy-service",
 		"rebuildProxy": "npm run stopProxy && npm run buildProxy",
-		"buildMqtt": "docker-compose up --build -d mqtt-service",
-		"stopMqtt": "docker-compose stop mqtt-service && docker-compose rm -f mqtt-service && docker rmi $(docker images -q mqtt-service)",
+		"buildMqtt": "docker-compose up --build -d appointment-service",
+		"stopMqtt": "docker-compose stop appointment-service && docker-compose rm -f appointment-service && docker rmi $(docker images -q appointment-service)",
 		"rebuildMqtt": "npm run stopMqtt && npm run buildMqtt"
 	},
 	"author": "",
