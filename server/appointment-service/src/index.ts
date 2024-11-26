@@ -2,10 +2,14 @@ import mqtt, {IClientOptions, IClientPublishOptions} from 'mqtt';
 import uniqid from 'uniqid';
 import Docker from 'dockerode';
 import os from 'os';
+import dotenv from 'dotenv';
 import { Service } from './types/Service';
+
+dotenv.config();
 
 let containerName:string;
 async function getContainerName(): Promise<string> {
+	if(process.env.CONTAINER_NAME) return process.env.CONTAINER_NAME;
     const docker = new Docker({ socketPath: '/var/run/docker.sock' });
     try {
         const containerId = os.hostname();
@@ -13,7 +17,7 @@ async function getContainerName(): Promise<string> {
         const data = await container.inspect();
         return data.Name.replace('/', ''); // Remove leading slash
     } catch (error) {
-        console.error('Error fetching container name:', error);
+        console.error('Could not get container name, name will be set to unknown');
         return 'unknown';
     }
 }
@@ -55,7 +59,7 @@ mqttClient.on('connect', async () => {
 		mqttClient.publish(heartbeatTopic, message, (err) => {
 			if (err) return console.error(`Failed to publish message: ${err.message}`);
 		});
-	},heartBeatInterval);
+	}, heartBeatInterval);
 });
 
 mqttClient.on('message', (topic, message) => {	
@@ -63,9 +67,7 @@ mqttClient.on('message', (topic, message) => {
 		console.log(`Received request: ${message.toString()}`);
 
 		const responseMessage = `Reply #${counter} to: "${message.toString()}" by service ${containerName}`;
-		const options:IClientPublishOptions = {
-			qos: 2
-		}
+		const options:IClientPublishOptions = { qos: 2 };
 
 		console.log(`Sent response: ${responseMessage}`);
 

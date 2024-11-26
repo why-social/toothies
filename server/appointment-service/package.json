@@ -1,5 +1,5 @@
 {
-  "name": "mqtt-service",
+  "name": "appointment-service",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
@@ -19,6 +19,7 @@
     "@types/dockerode": "^3.3.32",
     "@types/node": "^22.9.0",
     "@types/uniqid": "^5.3.4",
+    "dotenv": "^16.4.5",
     "typescript": "^5.6.3"
   }
 }

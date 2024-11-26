@@ -1,5 +1,4 @@
 import express, {Express, Request, Response, NextFunction} from 'express';
-import httpProxy from 'http-proxy';
 import cors from 'cors';
 import mqtt, {IClientOptions, IClientPublishOptions} from 'mqtt';
 import { Service } from './types/Service';
@@ -7,9 +6,6 @@ import { ServicesList } from './types/ServicesList';
 
 const app:Express = express();
 const port:number = 3000;
-const serviceProxy:httpProxy = httpProxy.createProxyServer();
-
-const localIp = "host.docker.internal";
 
 const mqttOptions:IClientOptions = {
 	username: "service",
@@ -21,27 +17,6 @@ const responseTopic = 'response/';
 const heartbeatTopic = 'heartbeat/topic';
 
 app.use(cors());
-
-app.use("/proxy", (req: Request, res: Response) => {
-
-	// Add header to measure time taken to proxy request
-	let timeBeforeReq:number = Date.now();
-	req.headers['x-time-before-req'] = timeBeforeReq.toString();
-
-	// Proxy request to proxy-service
-	console.log('\nProxying request');
-	serviceProxy.web(req, res, {
-		target: `http://${localIp}:3001/proxy`,
-		changeOrigin: true,
-		secure: true,
-		xfwd: true
-	}, (err) => {
-		if(err) {
-			console.error(err);
-			res.status(500).send('Failed to proxy request');
-		}
-	});
-});
 
 const mqttClient = mqtt.connect("tls://0fc2e0e6e10649f790f059e77c606dfe.s1.eu.hivemq.cloud:8883", mqttOptions);
 
@@ -82,69 +57,59 @@ mqttClient.on('connect', () => {
 	})
 });
 
-
-
-app.use("/mqtt", (req: Request, res: Response) => {
+app.use("/appointment", (req: Request, res: Response) => {
 	const requestMessage = 'Request message';
-	const mqttServiceTopic = servicesList.getRoundRobinService()?.getServiceId();
-	let timeBeforeReq:number = Date.now();
-	const options:IClientPublishOptions = {
-		qos: 2
-	}
+	const options:IClientPublishOptions = { qos: 2 }
+	const timeoutDuration = 3000;
+	let retries = 0;
+	const maxRetries = servicesList.getServicesCount();
+	
+	console.log("\n")
 
-	console.log(`\nPublished request: ${requestMessage}`);
-
-	mqttClient.publish(requestTopic + mqttServiceTopic, requestMessage, options, (err) => {
-		if (err) {
-			res.status(500).send('Failed to publish request message');
-			return;
-		}
+	const publishRequest = (serviceId: string) => {
+        console.log(`Published request: ${requestMessage} to service ${serviceId}`);
 
 		const messageHandler = (topic: string, message: Buffer) => {
-			if (topic === responseTopic + mqttServiceTopic) {
+			if (topic === responseTopic + serviceId) {
 				clearTimeout(timeout);
-				let timeAfterReq:number = Date.now();
-				let timeDiff:number = timeAfterReq - timeBeforeReq;
-				res.send(`Reply: ${message.toString()}<br>Time taken: ${timeDiff}ms`);
+				res.send(`Reply: ${message.toString()}`);
 				mqttClient.removeListener('message', messageHandler);
 				console.log(`Received response: ${message.toString()}\n`);
 			}
 		};
 
-		const timeoutDuration = 3000; // Timeout duration in milliseconds
-        const timeout = setTimeout(() => {
-			console.log(`Request to service ${mqttServiceTopic} timed out. Redirecting to another service...`);
-            mqttClient.removeListener('message', messageHandler);
-            const newServiceId = servicesList.getRoundRobinService()?.getServiceId();
-            if (newServiceId) {
-                // Republish the request to the a service
-                mqttClient.publish(requestTopic + newServiceId, requestMessage, options, (err) => {
-                    if (err) {
-                        res.status(500).send('Failed to publish request message to new service');
-                        return;
-                    }
-                    // Set up a new message handler for the new service
-                    const newMessageHandler = (topic: string, message: Buffer) => {
-                        if (topic === responseTopic + newServiceId) {
-                            let timeAfterReq:number = Date.now();
-                            let timeDiff:number = timeAfterReq - timeBeforeReq;
-                            res.send(`Reply: ${message.toString()}<br>Time taken: ${timeDiff}ms`);
-                            mqttClient.removeListener('message', newMessageHandler);
-                            console.log(`Received response from new service: ${message.toString()}\n`);
-                        }
-                    };
-                    mqttClient.on('message', newMessageHandler);
-                });
-            } else {
-                res.status(500).send('No available services to handle the request');
-				console.log('No available services to handle the request\n');
-            }
-        }, timeoutDuration);
-		
 		mqttClient.on('message', messageHandler);
 
-		// TODO: Add request timeout
-	});
+        mqttClient.publish(requestTopic + serviceId, requestMessage, options, (err) => {
+            if (err) return res.status(500).send('Failed to publish request message');
+        });
+
+		const timeout = setTimeout(() => {
+			console.log(`Request to service ${serviceId} timed out. Redirecting to another service...`);
+			mqttClient.removeListener('message', messageHandler);
+			retries++;
+			if (retries < maxRetries) {
+				const newServiceId = servicesList.getRoundRobinService()?.getServiceId();
+				if (newServiceId) {
+					publishRequest(newServiceId);
+				} else {
+					res.status(500).send('No available services to handle the request');
+					console.log('No available services to handle the request\n');
+				}
+			} else {
+				res.status(500).send('Request timed out after multiple retries');
+				console.log('Request timed out after multiple retries\n');
+			}
+		}, timeoutDuration);
+    };
+
+	const initialServiceId = servicesList.getRoundRobinService()?.getServiceId();
+    if (initialServiceId) {
+        publishRequest(initialServiceId);
+    } else {
+        res.status(500).send('No available services to handle the request');
+        console.log('No available services to handle the request\n');
+    }
 });
 
 app.use('/', (req: Request, res: Response, next: NextFunction) => {res.send('API Gateway')});
