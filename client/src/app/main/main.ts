@@ -9,5 +9,4 @@ import { RouterOutlet } from '@angular/router';
     RouterOutlet
   ],
 })
-
 export class Main { }

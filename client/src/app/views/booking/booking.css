@@ -1,11 +1,11 @@
 .container {
 	width: 100%;
-	height: fit-content;
+	overflow: hidden;
+	position: relative;
 }
 
-.calendar {
-	background: var(--color-surface-container-lowest);
-	height: 70vh;
-	border: 1px solid var(--color-outline-variant);
-	border-radius: 2rem;
+calendar {
+	display: block;
+	position: relative;
+	height: 800px;
 }
