@@ -33,9 +33,8 @@ const mqttOptions:IClientOptions = {
 
 const mqttClient = mqtt.connect("tls://0fc2e0e6e10649f790f059e77c606dfe.s1.eu.hivemq.cloud:8883", mqttOptions);
 
-const requestTopic = `request/${serviceId}`;
-const responseTopic = `response/${serviceId}`;
-const heartbeatTopic = 'heartbeat/topic';
+const requestTopic = `appointments/${serviceId}`;
+const heartbeatTopic = 'heartbeat/appointments';
 const heartBeatInterval = 10000;
 
 console.log(`Service ${serviceId} is running, connecting to MQTT broker...`);
@@ -46,7 +45,7 @@ mqttClient.on('connect', async () => {
 	containerName = await getContainerName();
 
 	// Subscribe to request topic
-	mqttClient.subscribe(requestTopic, (err) => {
+	mqttClient.subscribe(requestTopic + '/#', (err) => {
 		if (err) return console.error('Failed to subscribe to request topic');
 
 		console.log(`Subscribed to ${requestTopic}`);
@@ -63,17 +62,15 @@ mqttClient.on('connect', async () => {
 });
 
 mqttClient.on('message', (topic, message) => {	
-	if (topic === requestTopic) {
+	if (topic.startsWith(requestTopic)) { 
 		console.log(`Received request: ${message.toString()}`);
-
-		const responseMessage = `Reply #${counter} to: "${message.toString()}" by service ${containerName}`;
-		const options:IClientPublishOptions = { qos: 2 };
-
-		console.log(`Sent response: ${responseMessage}`);
-
-		mqttClient.publish(responseTopic, responseMessage, options, (err) => {
-			if (err) return console.error(`Failed to publish response message: ${err.message}`);
-			counter++;
-		});
+    const doctorId = /^appointments\/\w+\/(\w+)$/g.exec(topic);
+    if (!doctorId) {
+      console.error("No doctor Id");
+      return;
+    }
+    console.log(`Doctor ID: ${doctorId[1]}`);
+    
 	}
+  
 });
