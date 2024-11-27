@@ -1,0 +1,32 @@
+main {
+	width: fit-content;
+	min-width: 100%;
+	margin-left: auto;
+	margin-right: auto;
+	padding: 1rem;
+	box-sizing: border-box;
+}
+
+@media screen and (min-width: 768px) {
+	main {
+		min-width: 768px;
+	}
+}
+
+@media screen and (min-width: 992px) {
+	main {
+		min-width: 992px;
+	}
+}
+
+@media screen and (min-width: 1200px) {
+	main {
+		min-width: 1200px;
+	}
+}
+
+@media screen and (min-width: 1400px) {
+	main {
+		min-width: 1400px;
+	}
+}
