@@ -108,16 +108,22 @@ mqttClient.on('message', async (topic, message) => {
   // handle request
   switch (query.action) {
     case 'book': // book a slot
-      let slot = await slots.findOne({ doctorId: query.doctorId, startTime: query.startTime, isBooked: false });
+      let slot = await slots.findOne({ doctorId: query.doctorId, startTime: query.startTime });
       if (!slot) {
-        console.error("Slot already booked or does not exist");
-        console.log(query.doctorId, query.startTime);
+        console.error("Slot does not exist");
+        console.log(query);
+        return;
+      }
+
+      if (slot.isBooked) {
+        console.error("Slot already booked");
+        console.log(query);
         console.log(slot);
         return;
       }
 
       await slots.updateOne({ _id: slot._id }, { $set: { isBooked: true } });
-      console.log(`Slot booked: ${query.startTime}`);
+      console.log(`Slot successfully booked: ${query.startTime}`);
       break;
 
     case 'cancel': // cancel a slot
