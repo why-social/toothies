@@ -108,7 +108,7 @@ mqttClient.on('message', async (topic, message) => {
   // handle request
   switch (query.action) {
     case 'book': // book a slot
-      let slot = await slots.findOne({ doctorId: query.doctorId, startTime: query.startTime, isBooked: false }); // TODO fix dates
+      let slot = await slots.findOne({ doctorId: query.doctorId, startTime: query.startTime, isBooked: false });
       if (!slot) {
         console.error("Slot already booked or does not exist");
         console.log(query.doctorId, query.startTime);
