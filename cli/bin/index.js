@@ -7,6 +7,7 @@ import dotenv from "dotenv";
 
 import loginCommand from "./commands/loginCommand.js";
 import logoutCommand from "./commands/logoutCommand.js";
+import slotsCommand from "./commands/slots/slotsCommand.js";
 
 
 program
@@ -21,6 +22,7 @@ program
 
 program.addCommand(loginCommand);
 program.addCommand(logoutCommand);
+program.addCommand(slotsCommand);
 
 program.parse(process.argv);
 
