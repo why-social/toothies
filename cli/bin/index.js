@@ -2,9 +2,12 @@
 
 import { program } from "commander";
 import chalk from "chalk";
-import loginCommand from "./commands/loginCommand.js";
 import fs from "fs";
 import dotenv from "dotenv";
+
+import loginCommand from "./commands/loginCommand.js";
+import logoutCommand from "./commands/logoutCommand.js";
+
 
 program
 	.version("0.0.1")
@@ -17,6 +20,7 @@ program
 	});
 
 program.addCommand(loginCommand);
+program.addCommand(logoutCommand);
 
 program.parse(process.argv);
 

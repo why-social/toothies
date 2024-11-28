@@ -14,8 +14,8 @@ const loginCommand = new Command('login')
 
 	console.log('Logged in successfully');
 
-	const envToken = `ACCESS_TOKEN=${accessToken}`;
-    fs.writeFile(tokenPath, envToken, (err) => {
+	const envToken = `\nACCESS_TOKEN=${accessToken}`;
+    fs.appendFile(tokenPath, envToken, (err) => {
 		if (err) {
 			console.error('Error saving the access token to file:', err);
 		}
