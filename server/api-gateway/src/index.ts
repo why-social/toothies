@@ -12,8 +12,7 @@ const mqttOptions:IClientOptions = {
 	password: "Ilike2makewalks",
 };
 
-const requestTopic = 'appointments/';
-const responseTopic = 'response/';
+const requestTopic = 'appointments';
 const heartbeatTopic = 'heartbeat/appointments'; // TODO: general topics
 
 app.use(cors());
@@ -49,7 +48,7 @@ mqttClient.on('connect', () => {
 
 			if (!servicesList.hasService(serviceId)) {
 				servicesList.addService(msgService);
-				mqttClient.subscribe(`response/${serviceId}`, (err) => {
+				mqttClient.subscribe(`appointments/${serviceId}/res`, (err) => {
 					if (err) return console.error(`Failed to subscribe to response topic for service: ${containerName}`);
 					console.log(`Added service: ${containerName}`);
 				})
@@ -72,8 +71,14 @@ app.post("/appointment", (req: Request, res: Response) => {
     console.log(req.body);
 		return;
 	}
+  
+  const reqTimestamp = Date.now();
+  const requestMessage = JSON.stringify({ 
+    timestamp: reqTimestamp, // timestamp for identifying requests
+    doctorId: req.body.doctorId, 
+    startTime: req.body.startTime
+  });
 
-  const requestMessage = JSON.stringify( { doctorId: req.body.doctorId, startTime: req.body.startTime } );
 	const options:IClientPublishOptions = { qos: 2 }
 	const timeoutDuration = 3000;
 	let retries = 0;
@@ -81,32 +86,37 @@ app.post("/appointment", (req: Request, res: Response) => {
 	
 	console.log("\n")
 
-  const publishRequest = (serviceId: string) => {
-    console.log(`Published request: ${requestMessage} to ${requestTopic + serviceId + '/book'}`);
+  const publishRequest = (serviceId: string, expectedTimestamp: Number) => {
+    const publishTopic = `${requestTopic}/${serviceId}/book`;
+    const responseTopic = `${requestTopic}/${serviceId}/res`;
+    console.log(`Published request: ${requestMessage} to ${publishTopic}`);
 
-    const messageHandler = (topic: string, message: Buffer) => {
-      if (topic === responseTopic + serviceId) {
+    const responseHandler = (topic: string, message: Buffer) => {
+      const timestamp = JSON.parse(message.toString()).timestamp;
+
+      if (topic === responseTopic && timestamp == expectedTimestamp) {
         clearTimeout(timeout);
-        res.send(`Reply: ${message.toString()}`);
-        mqttClient.removeListener('message', messageHandler);
+        res.status(200).send(`Reply: ${message.toString()}`);
+        mqttClient.removeListener('message', responseHandler);
         console.log(`Received response: ${message.toString()}\n`);
       }
     };
 
-    mqttClient.on('message', messageHandler);
+    mqttClient.on('message', responseHandler);
 
-    mqttClient.publish(requestTopic + serviceId + '/book', requestMessage, options, (err) => {
+    mqttClient.publish(publishTopic, requestMessage, options, (err) => {
       if (err) return res.status(500).send('Failed to publish request message');
+      console.log(`Published to ${publishTopic}`)
     });
 
     const timeout = setTimeout(() => {
       console.log(`Request to service ${serviceId} timed out. Redirecting to another service...`);
-      mqttClient.removeListener('message', messageHandler);
+      mqttClient.removeListener('message', responseHandler);
       retries++;
       if (retries < maxRetries) {
         const newServiceId = servicesList.getRoundRobinService()?.getServiceId();
         if (newServiceId) {
-          publishRequest(newServiceId);
+          publishRequest(newServiceId, reqTimestamp);
         } else {
           res.status(500).send('No available services to handle the request');
           console.log('No available services to handle the request\n');
@@ -120,13 +130,7 @@ app.post("/appointment", (req: Request, res: Response) => {
 
 	const initialServiceId = servicesList.getRoundRobinService()?.getServiceId();
   if (initialServiceId) {
-    //publishRequest(initialServiceId);
-
-    mqttClient.publish(requestTopic + initialServiceId + '/book', requestMessage, options, (err) => {
-      console.log(`Published request: ${requestMessage} to ${requestTopic + initialServiceId + '/book'}`);
-      if (err) return res.status(500).send('Failed to publish request message');
-      else return res.status(200).send('Request sent');
-    });
+    publishRequest(initialServiceId, reqTimestamp);
   } else {
     res.status(500).send('No available services to handle the request');
     console.log('No available services to handle the request\n');

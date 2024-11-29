@@ -7,6 +7,7 @@ import { Service } from './types/Service';
 import { MongoClient, ObjectId } from 'mongodb';
 
 interface Query {
+  timestamp: Number;
   action: string;
   doctorId: ObjectId;
   startTime: Date;
@@ -49,6 +50,7 @@ const mqttOptions:IClientOptions = {
 const mqttClient = mqtt.connect("tls://0fc2e0e6e10649f790f059e77c606dfe.s1.eu.hivemq.cloud:8883", mqttOptions);
 
 const requestTopic = (process.env.TEST_TOPIC) ? `appointments/test` : `appointments/${serviceId}`;
+const responseTopic = requestTopic + '/res';
 const heartbeatTopic = 'heartbeat/appointments';
 const heartBeatInterval = 10000;
 
@@ -60,10 +62,13 @@ mqttClient.on('connect', async () => {
   containerName = await getContainerName();
 
   // Subscribe to request topic
-  mqttClient.subscribe(requestTopic + '/#', (err) => {
+  mqttClient.subscribe(requestTopic + '/book', (err) => {
     if (err) return console.error('Failed to subscribe to request topic');
-
-    console.log(`Subscribed to ${requestTopic}`);
+    console.log(`Subscribed to ${requestTopic + '/book'}`);
+  });
+  mqttClient.subscribe(requestTopic + '/cancel', (err) => {
+    if (err) return console.error('Failed to subscribe to request topic');
+    console.log(`Subscribed to ${requestTopic + '/cancel'}`);
   });
 
   // Heartbeat
@@ -77,23 +82,31 @@ mqttClient.on('connect', async () => {
 });
 
 /** 
-  * Message Format:
+  * Request Format:
   *   Topic: appointments/<instance>/<action>
   *     where instance is id of the service instance, action is 'book' or 'cancel'
-  *   Message: { "doctorId": <ObjectId>, "startTime": <Date> }
+  *   Message: { "timestamp": <long>, doctorId": <ObjectId>, "startTime": <Date> }
+  * Response Format (to the API gateway):
+  *   Topic: appointments/<instance>/res
+  *   Message: { "timestamp": <long>, "message": <string>}
+  * Notification Format (to the client):
+  *   Topic: appointments/<doctorId>
+  *   Message: { "startTime": <Date>, "isBooked": <bool> }
   */ 
 mqttClient.on('message', async (topic, message) => {	
-  console.log(`Received request: ${message.toString()}`); // DEBUG
+  console.log(`Received request [${topic}]:${message.toString()}`); // DEBUG
   
-  // correct topic is matched, action put into capture group 1 (params[1]), params[0] is the whole match
+  // correct topic is matched, action put into capture group 1 (params[1]),
+  // params[0] is the whole match
   const params = /^appointments\/\w+\/(\w+)$/g.exec(topic); 
-  if (!params) {
-    console.error("Invalid topic");
+  if (!params || !params[1]) {
+    console.error("Invalid topic. Expected format: appointments/<instance>/<action>");
     return;
   }
 
   const payload: Query = JSON.parse(message.toString());
   const query = {
+    timestamp: payload.timestamp,
     action : params[1],
     doctorId : new ObjectId(payload.doctorId),
     startTime : new Date(payload.startTime)
@@ -102,9 +115,8 @@ mqttClient.on('message', async (topic, message) => {
   if (!query.action || !query.doctorId || !query.startTime) {
     console.error("Invalid query:");
     console.log(query);
-    return;
   }
-
+  
   // handle request
   switch (query.action) {
     case 'book': // book a slot
@@ -112,6 +124,9 @@ mqttClient.on('message', async (topic, message) => {
       if (!slot) {
         console.error("Slot does not exist");
         console.log(query);
+        mqttClient.publish(responseTopic, JSON.stringify(
+          { timestamp: query.timestamp, message: "Error: Slot does not exist" }
+        ));
         return;
       }
 
@@ -119,10 +134,18 @@ mqttClient.on('message', async (topic, message) => {
         console.error("Slot already booked");
         console.log(query);
         console.log(slot);
+        mqttClient.publish(responseTopic, JSON.stringify(
+          { timestamp: query.timestamp, message: "Error: Slot already booked" }
+        ));
         return;
       }
 
+      slot.isBooked = true;
       await slots.updateOne({ _id: slot._id }, { $set: { isBooked: true } });
+      mqttClient.publish(responseTopic, JSON.stringify(
+        { timestamp: query.timestamp, message: "Slot successfully booked" }
+      ));
+      mqttClient.publish(`appointments/${query.doctorId}`, JSON.stringify(slot));
       console.log(`Slot successfully booked: ${query.startTime}`);
       break;
 
@@ -134,6 +157,8 @@ mqttClient.on('message', async (topic, message) => {
       console.error("Invalid action");
       return;
   }
+  
+
 });
 
 // TODO: close connections
