@@ -13,6 +13,13 @@ interface Query {
   startTime: Date;
 }
 
+interface Slot {
+  startTime: Date;
+  endTime: Date;
+  isBooked: boolean;
+  bookedBy: ObjectId | null;
+}
+
 dotenv.config();
 
 if (!process.env.ATLAS_CONN_STR) {
@@ -72,6 +79,10 @@ mqttClient.on("connect", async () => {
     if (err) return console.error("Failed to subscribe to request topic");
     console.log(`Subscribed to ${requestTopic + "/cancel"}`);
   });
+  mqttClient.subscribe(requestTopic + "/get", (err) => {
+    if (err) return console.error("Failed to subscribe to request topic");
+    console.log(`Subscribed to ${requestTopic + "/get"}`);
+  });
 
   // Heartbeat
   setInterval(() => {
@@ -115,34 +126,43 @@ mqttClient.on("message", async (topic, message) => {
     startTime: new Date(payload.startTime),
   };
 
-  if (!query.action || !query.doctorId || !query.startTime) {
+  if (
+    !query.action ||
+    !query.doctorId ||
+    (query.action != "get" && !query.startTime)
+  ) {
     console.error("Invalid query:");
     console.log(query);
   }
 
+  let slot;
   const responseTopic = `${serviceId}/res/${query.timestamp}`;
-
-  let slot = await slots.findOne({
-    doctorId: query.doctorId,
-    startTime: query.startTime,
-  });
-
-  if (!slot) {
-    console.error("Slot does not exist");
-    console.log(query);
-    mqttClient.publish(
-      responseTopic,
-      JSON.stringify({
-        timestamp: query.timestamp,
-        message: "Error: Slot does not exist",
-      }),
-    );
-    return;
-  }
 
   // handle request
   switch (query.action) {
+    case "get":
+      let doctorSlots = await slots
+        .find({ doctorId: query.doctorId })
+        .toArray();
+      console.log(doctorSlots);
+      mqttClient.publish(responseTopic, JSON.stringify(doctorSlots));
+      console.log("Published ", doctorSlots);
     case "book": // book a slot
+      slot = await slots.findOne({
+        doctorId: query.doctorId,
+        startTime: query.startTime,
+      });
+      if (!slot) {
+        console.error("Slot does not exist");
+        mqttClient.publish(
+          responseTopic,
+          JSON.stringify({
+            timestamp: query.timestamp,
+            message: "Error: Slot does not exist",
+          }),
+        );
+        return;
+      }
       if (slot.isBooked) {
         console.error("Slot already booked");
         console.log(query);
@@ -174,6 +194,21 @@ mqttClient.on("message", async (topic, message) => {
       break;
 
     case "cancel": // cancel a slot
+      slot = await slots.findOne({
+        doctorId: query.doctorId,
+        startTime: query.startTime,
+      });
+      if (!slot) {
+        console.error("Slot does not exist");
+        mqttClient.publish(
+          responseTopic,
+          JSON.stringify({
+            timestamp: query.timestamp,
+            message: "Error: Slot does not exist",
+          }),
+        );
+        return;
+      }
       if (!slot.isBooked) {
         console.error("Slot not booked");
         console.log(query);
@@ -193,7 +228,6 @@ mqttClient.on("message", async (topic, message) => {
       mqttClient.publish(
         responseTopic,
         JSON.stringify({
-          timestamp: query.timestamp,
           message: "Booking successfully cancelled",
         }),
       );

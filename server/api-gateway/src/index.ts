@@ -93,7 +93,7 @@ function mqttPublishWithResponse(
         mqttClient.removeListener("message", responseHandler);
         mqttClient.unsubscribe(responseTopic);
         console.log(`Received response: ${message.toString()}\n`);
-        return res.status(200).send(`Reply: ${message.toString()}`);
+        return res.status(200).send(message.toString());
       }
     };
 
@@ -145,6 +145,12 @@ function mqttPublishWithResponse(
  * 	 Body: { doctorId: <ObjectId>, startTime: <Date> }
  */
 // TODO: Auth
+app.get("/appointments", (req: Request, res: Response) => {
+  mqttPublishWithResponse(req, res, "get", {
+    doctorId: req.body.doctorId,
+  });
+});
+
 app.post("/appointments", (req: Request, res: Response) => {
   if (!req.body?.doctorId || !req.body?.startTime) {
     res.status(400).send("Error: Invalid request");
