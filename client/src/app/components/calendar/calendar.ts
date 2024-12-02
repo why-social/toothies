@@ -1,13 +1,21 @@
-import { Component, EventEmitter, Input, Output, OnInit } from '@angular/core';
-import { MatIconModule } from '@angular/material/icon';
-import { MatButtonModule } from '@angular/material/button';
-import { MatToolbarModule } from '@angular/material/toolbar';
-import { Slot, Slots } from '../../types/slots';
+import {
+  Component,
+  EventEmitter,
+  Input,
+  Output,
+  OnInit,
+  OnChanges,
+  SimpleChanges,
+} from "@angular/core";
+import { MatIconModule } from "@angular/material/icon";
+import { MatButtonModule } from "@angular/material/button";
+import { MatToolbarModule } from "@angular/material/toolbar";
+import { Slot, Slots } from "../../types/slots";
 
 @Component({
-  selector: 'calendar',
-  templateUrl: './calendar.html',
-  styleUrl: './calendar.css',
+  selector: "calendar",
+  templateUrl: "./calendar.html",
+  styleUrl: "./calendar.css",
   imports: [MatToolbarModule, MatButtonModule, MatIconModule],
 })
 export class Calendar implements OnInit {
@@ -42,8 +50,14 @@ export class Calendar implements OnInit {
     this.startDate.setMilliseconds(0);
   }
 
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes["slots"]) {
+      this.updateCalendarDataFor(this.startDate);
+    }
+  }
+
   ngOnInit(): void {
-    this.updateCalendarDataFor(this.startDate);
+    // this.updateCalendarDataFor(this.startDate);
   }
 
   private updateCalendarDataFor(startDate: Date) {
@@ -73,12 +87,12 @@ export class Calendar implements OnInit {
       }
     }
 
-    let startMonth = this.activeSlots[0].date.toLocaleString('default', {
-      month: 'long',
+    let startMonth = this.activeSlots[0].date.toLocaleString("default", {
+      month: "long",
     });
     let endMonth = this.activeSlots[
       Calendar.DAYS_PER_WEEK - 1
-    ].date.toLocaleString('default', { month: 'long' });
+    ].date.toLocaleString("default", { month: "long" });
 
     if (startMonth == endMonth) {
       this.month = startMonth;
@@ -87,7 +101,7 @@ export class Calendar implements OnInit {
     } else {
       this.month =
         startMonth.substring(0, Math.min(startMonth.length, 3)) +
-        ' - ' +
+        " - " +
         endMonth.substring(0, Math.min(endMonth.length, 3));
 
       const startWeek: string = this.getWeekDay(this.activeSlots[0].date);
@@ -99,7 +113,7 @@ export class Calendar implements OnInit {
         this.week = startWeek;
         this.year = this.activeSlots[0].date.getFullYear();
       } else {
-        this.week = startWeek + ' - ' + endWeek;
+        this.week = startWeek + " - " + endWeek;
         this.year =
           this.activeSlots[Calendar.DAYS_PER_WEEK - 1].date.getFullYear();
       }
@@ -133,7 +147,7 @@ export class Calendar implements OnInit {
     date.setSeconds(0);
     date.setMilliseconds(0);
 
-    return this.normalizedSince(date, slot.startTime) + '%';
+    return this.normalizedSince(date, slot.startTime) + "%";
   }
 
   public calculateBottom(slot: Slot) {
@@ -144,7 +158,7 @@ export class Calendar implements OnInit {
     date.setSeconds(0);
     date.setMilliseconds(0);
 
-    return this.normalizedSince(slot.endTime, date) + '%';
+    return this.normalizedSince(slot.endTime, date) + "%";
   }
 
   public goBack() {

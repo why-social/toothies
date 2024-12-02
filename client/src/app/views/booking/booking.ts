@@ -16,7 +16,7 @@ import { ActivatedRoute } from "@angular/router";
   templateUrl: "./booking.html",
   styleUrl: "./booking.css",
   imports: [Calendar],
-  changeDetection: ChangeDetectionStrategy.OnPush,
+  // changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class Booking {
   readonly dialog = inject(MatDialog);
@@ -35,10 +35,20 @@ export class Booking {
 
   private fetchSlots() {
     this.http
-      .get<Array<Slot>>("http://localhost:3000/appointments/")
+      .get<
+        Array<Slot>
+      >(`http://localhost:3000/appointments?doctorId=${this.doctorId}`)
       .subscribe({
         next: (data) => {
-          this.slots = data;
+          this.slots = data.map(
+            (it) =>
+              ({
+                startTime: new Date(it.startTime),
+                endTime: new Date(it.endTime),
+                isBooked: it.isBooked,
+              }) as Slot,
+          );
+          console.log("Fetched: ", this.slots);
         },
         error: (error) => {
           console.error("Error fetching slots: ", error);
