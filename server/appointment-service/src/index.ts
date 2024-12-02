@@ -147,6 +147,8 @@ mqttClient.on("message", async (topic, message) => {
       console.log(doctorSlots);
       mqttClient.publish(responseTopic, JSON.stringify(doctorSlots));
       console.log("Published ", doctorSlots);
+      break;
+
     case "book": // book a slot
       slot = await slots.findOne({
         doctorId: query.doctorId,

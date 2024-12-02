@@ -146,8 +146,12 @@ function mqttPublishWithResponse(
  */
 // TODO: Auth
 app.get("/appointments", (req: Request, res: Response) => {
+  if (!req.query?.doctorId) {
+    res.status(400).send("No id specified");
+    return;
+  }
   mqttPublishWithResponse(req, res, "get", {
-    doctorId: req.body.doctorId,
+    doctorId: req.query.doctorId,
   });
 });
 
