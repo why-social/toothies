@@ -70,7 +70,6 @@ function mqttPublishWithResponse(
   topic: string,
   message: Object,
 ) {
-  console.log("HERE!3");
   const options: IClientPublishOptions = { qos: 2 };
   const timeoutDuration = 3000;
   let retries = 0;
@@ -81,17 +80,14 @@ function mqttPublishWithResponse(
     ...message,
     timestamp: reqTimestamp,
   });
-  console.log(requestMessage);
 
   const publishRequest = (serviceId: string) => {
-    console.log("HERE!4");
     const publishTopic = `${serviceId}/${topic}`;
     const responseTopic = `${serviceId}/res/${reqTimestamp}`;
 
     // handler for receiving a response from a service.
     // expects a response message on the topic '$appointments/${serviceId}/res/${reqTimestamp}'
     const responseHandler = (topic: string, message: Buffer) => {
-      console.log("HERE!5");
       if (topic === responseTopic) {
         clearTimeout(timeout);
         mqttClient.removeListener("message", responseHandler);
@@ -150,14 +146,12 @@ function mqttPublishWithResponse(
  */
 // TODO: Auth
 app.post("/appointment", (req: Request, res: Response) => {
-  console.log("HERE!");
   if (!req.body?.doctorId || !req.body?.startTime) {
     res.status(400).send("Error: Invalid request");
     console.log("Invalid request: ", req.body);
     return;
   }
 
-  console.log("HERE!2");
   mqttPublishWithResponse(req, res, "book", {
     doctorId: req.body.doctorId,
     startTime: req.body.startTime,
