@@ -145,7 +145,7 @@ function mqttPublishWithResponse(
  * 	 Body: { doctorId: <ObjectId>, startTime: <Date> }
  */
 // TODO: Auth
-app.post("/appointment", (req: Request, res: Response) => {
+app.post("/appointments", (req: Request, res: Response) => {
   if (!req.body?.doctorId || !req.body?.startTime) {
     res.status(400).send("Error: Invalid request");
     console.log("Invalid request: ", req.body);

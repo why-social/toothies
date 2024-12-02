@@ -122,26 +122,27 @@ mqttClient.on("message", async (topic, message) => {
 
   const responseTopic = `${serviceId}/res/${query.timestamp}`;
 
+  let slot = await slots.findOne({
+    doctorId: query.doctorId,
+    startTime: query.startTime,
+  });
+
+  if (!slot) {
+    console.error("Slot does not exist");
+    console.log(query);
+    mqttClient.publish(
+      responseTopic,
+      JSON.stringify({
+        timestamp: query.timestamp,
+        message: "Error: Slot does not exist",
+      }),
+    );
+    return;
+  }
+
   // handle request
   switch (query.action) {
     case "book": // book a slot
-      let slot = await slots.findOne({
-        doctorId: query.doctorId,
-        startTime: query.startTime,
-      });
-      if (!slot) {
-        console.error("Slot does not exist");
-        console.log(query);
-        mqttClient.publish(
-          responseTopic,
-          JSON.stringify({
-            timestamp: query.timestamp,
-            message: "Error: Slot does not exist",
-          }),
-        );
-        return;
-      }
-
       if (slot.isBooked) {
         console.error("Slot already booked");
         console.log(query);
@@ -173,7 +174,34 @@ mqttClient.on("message", async (topic, message) => {
       break;
 
     case "cancel": // cancel a slot
-      //TODO
+      if (!slot.isBooked) {
+        console.error("Slot not booked");
+        console.log(query);
+        console.log(slot);
+        mqttClient.publish(
+          responseTopic,
+          JSON.stringify({
+            timestamp: query.timestamp,
+            message: "Error: Cannot cancel a non-booked slot",
+          }),
+        );
+        return;
+      }
+
+      slot.isBooked = false;
+      await slots.updateOne({ _id: slot._id }, { $set: { isBooked: false } });
+      mqttClient.publish(
+        responseTopic,
+        JSON.stringify({
+          timestamp: query.timestamp,
+          message: "Booking successfully cancelled",
+        }),
+      );
+      mqttClient.publish(
+        `appointments/${query.doctorId}`,
+        JSON.stringify(slot),
+      );
+      console.log(`Booking successfully cancelled: ${query.startTime}`);
       break;
 
     default:
