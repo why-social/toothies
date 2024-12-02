@@ -2,7 +2,7 @@ import { Component, EventEmitter, Input, Output, OnInit } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatToolbarModule } from '@angular/material/toolbar';
-import { Slot, Slots } from './slots';
+import { Slot, Slots } from '../../types/slots';
 
 @Component({
   selector: 'calendar',

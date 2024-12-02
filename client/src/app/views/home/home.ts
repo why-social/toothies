@@ -1,6 +1,6 @@
 import { Component } from '@angular/core';
-import { Doctors } from '../../components/doctors/doctors';
 import { MatTabGroup, MatTab } from '@angular/material/tabs';
+import { Doctors } from './doctors/doctors';
 
 @Component({
   templateUrl: './home.html',

@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
 import { Calendar } from '../../components/calendar/calendar';
-import { Slot } from '../../components/calendar/slots';
+import { Slot } from '../../types/slots';
 import { Dialog } from './dialog/dialog';
 
 @Component({

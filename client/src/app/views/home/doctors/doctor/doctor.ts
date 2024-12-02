@@ -2,6 +2,8 @@ import { Component, Input } from '@angular/core';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIcon } from '@angular/material/icon';
+import { Router } from '@angular/router';
+import { PopulatedDoctor } from '../../../../types/doctor';
 
 @Component({
   selector: 'doctor',
@@ -10,12 +12,11 @@ import { MatIcon } from '@angular/material/icon';
   imports: [MatCardModule, MatButtonModule, MatIcon],
 })
 export class DoctorComponent {
-  @Input() doctor!: Doctor;
-}
+  @Input() doctor!: PopulatedDoctor;
 
-export interface Doctor {
-  name: string;
-  doctorId: string;
-  location: string;
-  type: string;
+  constructor(private router: Router) {}
+
+  public book() {
+    this.router.navigateByUrl(`/book/${this.doctor.doctorId}`);
+  }
 }
