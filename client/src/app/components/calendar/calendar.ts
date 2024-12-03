@@ -4,7 +4,6 @@ import {
   Input,
   Output,
   OnInit,
-  OnChanges,
   SimpleChanges,
 } from "@angular/core";
 import { MatIconModule } from "@angular/material/icon";

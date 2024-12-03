@@ -1,4 +1,10 @@
-import { Component, ChangeDetectionStrategy, inject } from '@angular/core';
+import {
+  Component,
+  ChangeDetectionStrategy,
+  inject,
+  Inject,
+} from '@angular/core';
+import { MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
 import {
   MatDialogActions,
@@ -22,4 +28,20 @@ import {
 })
 export class Dialog {
   readonly dialogRef = inject(MatDialogRef<Dialog>);
+
+  constructor(
+    @Inject(MAT_DIALOG_DATA)
+    public data: {
+      title: string;
+      message: string;
+    },
+  ) {}
+
+  public cancel() {
+    this.dialogRef.close();
+  }
+
+  public confirm() {
+    this.dialogRef.close('success');
+  }
 }

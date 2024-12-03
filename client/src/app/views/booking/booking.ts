@@ -3,18 +3,18 @@ import {
   Component,
   inject,
   Injectable,
-} from "@angular/core";
-import { MatDialog } from "@angular/material/dialog";
-import { Calendar } from "../../components/calendar/calendar";
-import { Slot } from "../../types/slots";
-import { Dialog } from "./dialog/dialog";
-import { HttpClient } from "@angular/common/http";
-import { ActivatedRoute } from "@angular/router";
+} from '@angular/core';
+import { MatDialog } from '@angular/material/dialog';
+import { Calendar } from '../../components/calendar/calendar';
+import { Slot } from '../../types/slots';
+import { Dialog } from './dialog/dialog';
+import { HttpClient } from '@angular/common/http';
+import { ActivatedRoute } from '@angular/router';
 
-@Injectable({ providedIn: "root" })
+@Injectable({ providedIn: 'root' })
 @Component({
-  templateUrl: "./booking.html",
-  styleUrl: "./booking.css",
+  templateUrl: './booking.html',
+  styleUrl: './booking.css',
   imports: [Calendar],
   // changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -24,11 +24,12 @@ export class Booking {
   private route = inject(ActivatedRoute);
 
   slots: Array<Slot> = [];
-  doctorId: string | null = null;
+  private doctorId: string | null = null;
+  private pendingSlot: Slot | null = null;
 
   public ngOnInit() {
     this.route.paramMap.subscribe((params) => {
-      this.doctorId = params.get("id");
+      this.doctorId = params.get('id');
       if (this.doctorId) this.fetchSlots();
     });
   }
@@ -48,19 +49,42 @@ export class Booking {
                 isBooked: it.isBooked,
               }) as Slot,
           );
-          console.log("Fetched: ", this.slots);
+          console.log('Fetched: ', this.slots);
         },
         error: (error) => {
-          console.error("Error fetching slots: ", error);
+          console.error('Error fetching slots: ', error);
         },
       });
   }
 
-  public openDialog(slot: Slot) {
-    this.dialog.open(Dialog, {
-      width: "250px",
-      enterAnimationDuration: "200ms",
-      exitAnimationDuration: "200ms",
-    });
+  public openBookingDialog(slot: Slot) {
+    this.pendingSlot = slot;
+
+    this.dialog
+      .open(Dialog, {
+        width: '250px',
+        data: {
+          title: 'Confirm Booking',
+          message: `Time: ${slot.startTime.toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false,
+          })} - ${slot.endTime.toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false,
+          })}`,
+        },
+        enterAnimationDuration: '200ms',
+        exitAnimationDuration: '200ms',
+      })
+      .afterClosed()
+      .subscribe((result) => {
+        if (result == 'success') {
+          console.log(slot);
+        }
+
+        this.pendingSlot = null;
+      });
   }
 }
