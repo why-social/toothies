@@ -3,7 +3,7 @@ import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIcon } from '@angular/material/icon';
 import { Router } from '@angular/router';
-import { PopulatedDoctor } from '../../../../types/doctor';
+import { Doctor } from '../../../../types/doctor';
 
 @Component({
   selector: 'doctor',
@@ -12,7 +12,7 @@ import { PopulatedDoctor } from '../../../../types/doctor';
   imports: [MatCardModule, MatButtonModule, MatIcon],
 })
 export class DoctorComponent {
-  @Input() doctor!: PopulatedDoctor;
+  @Input() doctor!: Doctor;
 
   constructor(private router: Router) {}
 

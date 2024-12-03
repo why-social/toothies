@@ -194,7 +194,6 @@ hr {
 }
 
 .events .event .event-container.disabled {
-  pointer-events: none;
   background: var(--mat-sys-surface-variant);
 }
 
