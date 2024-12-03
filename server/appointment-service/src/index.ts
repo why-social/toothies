@@ -9,8 +9,8 @@ import { MongoClient, ObjectId } from "mongodb";
 interface Query {
   timestamp: Number;
   action: string;
-  doctorId: ObjectId;
-  startTime: Date;
+  doctorId?: ObjectId;
+  startTime?: Date;
 }
 
 dotenv.config();
@@ -21,6 +21,7 @@ if (!process.env.ATLAS_CONN_STR) {
 const atlasClient = new MongoClient(process.env.ATLAS_CONN_STR);
 const db = atlasClient.db("primary");
 const slots = db.collection("slots");
+const doctors = db.collection("doctors");
 
 let containerName: string;
 async function getContainerName(): Promise<string> {
@@ -40,8 +41,6 @@ async function getContainerName(): Promise<string> {
 
 let counter: number = 1;
 
-const serviceId: string = uniqid();
-
 const mqttOptions: IClientOptions = {
   username: process.env.MQTT_USERNAME,
   password: process.env.MQTT_PASSWORD,
@@ -52,7 +51,7 @@ const mqttClient = mqtt.connect(
   mqttOptions,
 );
 
-const requestTopic = process.env.TEST_TOPIC ? `test` : serviceId;
+const serviceId: string = process.env.TEST_TOPIC ? `test` : uniqid();
 const heartbeatTopic = "heartbeat/appointments";
 const heartBeatInterval = 10000;
 
@@ -64,13 +63,13 @@ mqttClient.on("connect", async () => {
   containerName = await getContainerName();
 
   // Subscribe to request topics
-  mqttClient.subscribe(requestTopic + "/book", (err) => {
+  mqttClient.subscribe(serviceId + "/appointments/#", (err) => {
     if (err) return console.error("Failed to subscribe to request topic");
-    console.log(`Subscribed to ${requestTopic + "/book"}`);
+    console.log(`Subscribed to appoinments/#`);
   });
-  mqttClient.subscribe(requestTopic + "/cancel", (err) => {
+  mqttClient.subscribe(serviceId + "/doctors/#", (err) => {
     if (err) return console.error("Failed to subscribe to request topic");
-    console.log(`Subscribed to ${requestTopic + "/cancel"}`);
+    console.log(`Subscribed to doctors/#`);
   });
 
   // Heartbeat
@@ -85,64 +84,104 @@ mqttClient.on("connect", async () => {
 });
 
 /**
- * Request Format:
- *   Topic: appointments/<instance>/<action>
- *     where instance is id of the service instance, action is 'book' or 'cancel'
+ * Appointment endpoints:
+ *   Topic: <instance>/appointments/<action>
+ *     where instance is id of the service instance, action is 'get', 'book' or 'cancel'
  *   Message: { "timestamp": <long>, doctorId": <ObjectId>, "startTime": <Date> }
  * Response Format (to the API gateway):
- *   Topic: appointments/<instance>/res
+ *   Topic: <instance>/appointments/res
  *   Message: { "timestamp": <long>, "message": <string>}
  * Notification Format (to the client):
  *   Topic: appointments/<doctorId>
  *   Message: { "startTime": <Date>, "isBooked": <bool> }
  */
+
+/**
+ * Appointment endpoints:
+ *   Topic: doctors/<instance>/<action>
+ *     where instance is id of the service instance, action is 'get' or '
+ */
 mqttClient.on("message", async (topic, message) => {
   console.log(`Received request [${topic}]:${message.toString()}`); // DEBUG
 
-  // correct topic is matched, action put into capture group 1 (params[1]),
+  // correct topic is matched,
+  // endpoint put into capture group 1 (params[1]),
+  // action punt into capture group 2 (params[2])
   // params[0] is the whole match
-  const params = /^\w+\/(\w+)$/g.exec(topic);
-  if (!params || !params[1]) {
-    console.error("Invalid topic. Expected format: <instanceId>/<action>");
-    return;
-  }
-
-  const payload: Query = JSON.parse(message.toString());
-  const query = {
-    timestamp: payload.timestamp,
-    action: params[1],
-    doctorId: new ObjectId(payload.doctorId),
-    startTime: new Date(payload.startTime),
-  };
-
-  if (!query.action || !query.doctorId || !query.startTime) {
-    console.error("Invalid query:");
-    console.log(query);
-  }
-
-  const responseTopic = `${serviceId}/res/${query.timestamp}`;
-
-  let slot = await slots.findOne({
-    doctorId: query.doctorId,
-    startTime: query.startTime,
-  });
-
-  if (!slot) {
-    console.error("Slot does not exist");
-    console.log(query);
-    mqttClient.publish(
-      responseTopic,
-      JSON.stringify({
-        timestamp: query.timestamp,
-        message: "Error: Slot does not exist",
-      }),
+  const params = /^\w+\/(\w+)\/(\w+)$/g.exec(topic);
+  if (params?.length != 3) {
+    console.error(
+      "Invalid topic. Expected format: <instanceId>/<endpoint>/<action>",
     );
     return;
   }
+  const payload = JSON.parse(message.toString());
+  const query: Query = {
+    timestamp: payload.timestamp,
+    action: params[2],
+    ...(payload.doctorId && { doctorId: new ObjectId(payload.doctorId) }),
+    ...(payload.startTime && { startTime: new Date(payload.startTime) }),
+  };
+  // handle requests
+  switch (params[1]) {
+    case "appointments": {
+      if (
+        !query.action ||
+        !query.doctorId ||
+        (query.action != "get" && !query.startTime)
+      ) {
+        console.error("Invalid query:");
+        console.log(query);
+        break;
+      }
 
-  // handle request
+      await handleAppointmentsRequest(query);
+      break;
+    }
+
+    case "doctors": {
+      switch (params[2]) {
+        case "get":
+          await getAllDoctors(query);
+          break;
+      }
+      break;
+    }
+  }
+});
+
+// TODO: explicitly close connections
+
+async function handleAppointmentsRequest(query: Query) {
+  const responseTopic = `${serviceId}/res/${query.timestamp}`;
+  let slot;
+
   switch (query.action) {
+    case "get":
+      let doctorSlots = await slots
+        .find({ doctorId: query.doctorId })
+        .toArray();
+      console.log(doctorSlots);
+      mqttClient.publish(responseTopic, JSON.stringify(doctorSlots));
+      console.log("Published ", doctorSlots);
+      break;
+
     case "book": // book a slot
+      slot = await slots.findOne({
+        doctorId: query.doctorId,
+        startTime: query.startTime,
+      });
+      if (!slot) {
+        console.error("Slot does not exist");
+        mqttClient.publish(
+          responseTopic,
+          JSON.stringify({
+            timestamp: query.timestamp,
+            message: "Error: Slot does not exist",
+          }),
+        );
+        return;
+      }
       if (slot.isBooked) {
         console.error("Slot already booked");
         console.log(query);
@@ -174,6 +213,21 @@ mqttClient.on("message", async (topic, message) => {
       break;
 
     case "cancel": // cancel a slot
+      slot = await slots.findOne({
+        doctorId: query.doctorId,
+        startTime: query.startTime,
+      });
+      if (!slot) {
+        console.error("Slot does not exist");
+        mqttClient.publish(
+          responseTopic,
+          JSON.stringify({
+            timestamp: query.timestamp,
+            message: "Error: Slot does not exist",
+          }),
+        );
+        return;
+      }
       if (!slot.isBooked) {
         console.error("Slot not booked");
         console.log(query);
@@ -193,7 +247,6 @@ mqttClient.on("message", async (topic, message) => {
       mqttClient.publish(
         responseTopic,
         JSON.stringify({
-          timestamp: query.timestamp,
           message: "Booking successfully cancelled",
         }),
       );
@@ -208,6 +261,10 @@ mqttClient.on("message", async (topic, message) => {
       console.error("Invalid action");
       return;
   }
-});
+}
 
-// TODO: close connections
+async function getAllDoctors(query: Query) {
+  const responseTopic = `${serviceId}/res/${query.timestamp}`;
+  let allDoctors = await doctors.find().toArray();
+  mqttClient.publish(responseTopic, JSON.stringify(allDoctors));
+}

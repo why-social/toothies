@@ -1,0 +1,109 @@
+<div class="container">
+  <mat-toolbar>
+    <div>
+      <button mat-icon-button (click)="goBack()">
+        <mat-icon>arrow_back_ios</mat-icon>
+      </button>
+
+      <button mat-icon-button (click)="goForward()">
+        <mat-icon>arrow_forward_ios</mat-icon>
+      </button>
+    </div>
+
+    <span>{{ month + " " + year }}</span>
+
+    <span class="week-number">{{ "Week " + week }}</span>
+  </mat-toolbar>
+
+  <div class="calendar">
+    <div class="scroller-x">
+      <div class="container-x">
+        <div class="days">
+          @for (slots of activeSlots; track slots.date.valueOf()) {
+            <div class="day-container">
+              <span>{{
+                slots.date.toLocaleString("default", {
+                  weekday: "long",
+                })
+              }}</span>
+              <span
+                [attr.active]="
+                  today.getDate() == slots.date.getDate() &&
+                  today.getMonth() == slots.date.getMonth() &&
+                  today.getFullYear() == slots.date.getFullYear()
+                    ? 'active'
+                    : null
+                "
+                >{{ slots.date.getDate() }}</span
+              >
+            </div>
+          }
+        </div>
+
+        <hr />
+
+        <div class="scroller-y">
+          <div class="time">
+            <div style="height: 20px"></div>
+            @for (hour of hours; track hour) {
+              <div>
+                <span>{{ hour + ":00" }}</span>
+              </div>
+            }
+          </div>
+          <div class="time-slots">
+            <div class="row">
+              <!--top fader-->
+              @for (slots of activeSlots; track slots.date.valueOf()) {
+                <div class="slot"></div>
+              }
+            </div>
+            <div class="slots">
+              @for (slots of activeSlots; track slots.date.valueOf()) {
+                <div class="column">
+                  <div class="events">
+                    @for (
+                      slot of slots.events;
+                      track slot.startTime.valueOf()
+                    ) {
+                      <div
+                        class="event"
+                        [style.top]="calculateTop(slot)"
+                        [style.bottom]="calculateBottom(slot)"
+                      >
+                        <div
+                          class="event-container"
+                          [class.disabled]="slot.isBooked"
+                          (click)="openEvent.emit(slot)"
+                        >
+                          <div class="interval">
+                            {{
+                              slot.startTime.toLocaleTimeString([], {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                                hour12: false,
+                              }) +
+                                " - " +
+                                slot.endTime.toLocaleTimeString([], {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                  hour12: false,
+                                })
+                            }}
+                          </div>
+                        </div>
+                      </div>
+                    }
+                  </div>
+                  @for (hour of hours; track hour) {
+                    <div class="slot"></div>
+                  }
+                </div>
+              }
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

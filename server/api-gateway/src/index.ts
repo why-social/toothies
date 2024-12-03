@@ -68,7 +68,7 @@ function mqttPublishWithResponse(
   req: Request,
   res: Response,
   topic: string,
-  message: Object,
+  message?: Object,
 ) {
   const options: IClientPublishOptions = { qos: 2 };
   const timeoutDuration = 3000;
@@ -76,24 +76,26 @@ function mqttPublishWithResponse(
   const maxRetries = servicesList.getServicesCount();
 
   const reqTimestamp = Date.now(); // timestamp to identify req and res
-  const requestMessage = JSON.stringify({
-    ...message,
-    timestamp: reqTimestamp,
-  });
+  const requestMessage = message
+    ? JSON.stringify({
+        ...message,
+        timestamp: reqTimestamp,
+      })
+    : JSON.stringify({ timestamp: reqTimestamp });
 
   const publishRequest = (serviceId: string) => {
     const publishTopic = `${serviceId}/${topic}`;
     const responseTopic = `${serviceId}/res/${reqTimestamp}`;
 
     // handler for receiving a response from a service.
-    // expects a response message on the topic '$appointments/${serviceId}/res/${reqTimestamp}'
+    // expects a response message on the topic '${serviceId}/res/${reqTimestamp}'
     const responseHandler = (topic: string, message: Buffer) => {
       if (topic === responseTopic) {
         clearTimeout(timeout);
         mqttClient.removeListener("message", responseHandler);
         mqttClient.unsubscribe(responseTopic);
         console.log(`Received response: ${message.toString()}\n`);
-        return res.status(200).send(`Reply: ${message.toString()}`);
+        return res.status(200).send(message.toString());
       }
     };
 
@@ -138,13 +140,40 @@ function mqttPublishWithResponse(
   }
 }
 
+// Clinic enpoints
+
 /**
- * Appoinment endpoints
- * Format:
- *   Endpoint: /appointment
- * 	 Body: { doctorId: <ObjectId>, startTime: <Date> }
+ *  Get appointment slots of a doctor
+ *  Request Format:
+ *      Endpoint: /clinics
+ */
+app.get("/doctors", (req: Request, res: Response) => {
+  mqttPublishWithResponse(req, res, "doctors/get");
+});
+
+// Doctor endpoints
+/**
+ *  Get appointment slots of a doctor
+ *  Request Format:
+ *      Endpoint: /appointments?doctorId
  */
 // TODO: Auth
+app.get("/appointments", (req: Request, res: Response) => {
+  if (!req.query?.doctorId) {
+    res.status(400).send("No id specified");
+    return;
+  }
+  mqttPublishWithResponse(req, res, "appointments/get", {
+    doctorId: req.query.doctorId,
+  });
+});
+
+/**
+ *  Get appointment slots of a doctor
+ *  Request Format:
+ *      Endpoint: /appointments
+ *      Body: { doctorId: <ObjectId>, startTime: <Date> }
+ */
 app.post("/appointments", (req: Request, res: Response) => {
   if (!req.body?.doctorId || !req.body?.startTime) {
     res.status(400).send("Error: Invalid request");
@@ -152,12 +181,18 @@ app.post("/appointments", (req: Request, res: Response) => {
     return;
   }
 
-  mqttPublishWithResponse(req, res, "book", {
+  mqttPublishWithResponse(req, res, "appointments/book", {
     doctorId: req.body.doctorId,
     startTime: req.body.startTime,
   });
 });
 
+/**
+ *  Get appointment slots of a doctor
+ *  Request Format:
+ *      Endpoint: /appointments
+ *      Body: { doctorId: <ObjectId>, startTime: <Date> }
+ */
 app.delete("/appointments", (req: Request, res: Response) => {
   if (!req.body?.doctorId || !req.body?.startTime) {
     res.status(400).send("Error: Invalid request");
@@ -165,7 +200,7 @@ app.delete("/appointments", (req: Request, res: Response) => {
     return;
   }
 
-  mqttPublishWithResponse(req, res, "cancel", {
+  mqttPublishWithResponse(req, res, "appointments/cancel", {
     doctorId: req.body.doctorId,
     startTime: req.body.startTime,
   });
