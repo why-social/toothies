@@ -9,15 +9,8 @@ import { MongoClient, ObjectId } from "mongodb";
 interface Query {
   timestamp: Number;
   action: string;
-  doctorId: ObjectId;
-  startTime: Date;
-}
-
-interface Slot {
-  startTime: Date;
-  endTime: Date;
-  isBooked: boolean;
-  bookedBy: ObjectId | null;
+  doctorId?: ObjectId;
+  startTime?: Date;
 }
 
 dotenv.config();
@@ -28,6 +21,7 @@ if (!process.env.ATLAS_CONN_STR) {
 const atlasClient = new MongoClient(process.env.ATLAS_CONN_STR);
 const db = atlasClient.db("primary");
 const slots = db.collection("slots");
+const doctors = db.collection("doctors");
 
 let containerName: string;
 async function getContainerName(): Promise<string> {
@@ -47,8 +41,6 @@ async function getContainerName(): Promise<string> {
 
 let counter: number = 1;
 
-const serviceId: string = uniqid();
-
 const mqttOptions: IClientOptions = {
   username: process.env.MQTT_USERNAME,
   password: process.env.MQTT_PASSWORD,
@@ -59,7 +51,7 @@ const mqttClient = mqtt.connect(
   mqttOptions,
 );
 
-const requestTopic = process.env.TEST_TOPIC ? `test` : serviceId;
+const serviceId: string = process.env.TEST_TOPIC ? `test` : uniqid();
 const heartbeatTopic = "heartbeat/appointments";
 const heartBeatInterval = 10000;
 
@@ -71,17 +63,13 @@ mqttClient.on("connect", async () => {
   containerName = await getContainerName();
 
   // Subscribe to request topics
-  mqttClient.subscribe(requestTopic + "/book", (err) => {
+  mqttClient.subscribe(serviceId + "/appointments/#", (err) => {
     if (err) return console.error("Failed to subscribe to request topic");
-    console.log(`Subscribed to ${requestTopic + "/book"}`);
+    console.log(`Subscribed to appoinments/#`);
   });
-  mqttClient.subscribe(requestTopic + "/cancel", (err) => {
+  mqttClient.subscribe(serviceId + "/doctors/#", (err) => {
     if (err) return console.error("Failed to subscribe to request topic");
-    console.log(`Subscribed to ${requestTopic + "/cancel"}`);
-  });
-  mqttClient.subscribe(requestTopic + "/get", (err) => {
-    if (err) return console.error("Failed to subscribe to request topic");
-    console.log(`Subscribed to ${requestTopic + "/get"}`);
+    console.log(`Subscribed to doctors/#`);
   });
 
   // Heartbeat
@@ -96,49 +84,78 @@ mqttClient.on("connect", async () => {
 });
 
 /**
- * Request Format:
- *   Topic: appointments/<instance>/<action>
- *     where instance is id of the service instance, action is 'book' or 'cancel'
+ * Appointment endpoints:
+ *   Topic: <instance>/appointments/<action>
+ *     where instance is id of the service instance, action is 'get', 'book' or 'cancel'
  *   Message: { "timestamp": <long>, doctorId": <ObjectId>, "startTime": <Date> }
  * Response Format (to the API gateway):
- *   Topic: appointments/<instance>/res
+ *   Topic: <instance>/appointments/res
  *   Message: { "timestamp": <long>, "message": <string>}
  * Notification Format (to the client):
  *   Topic: appointments/<doctorId>
  *   Message: { "startTime": <Date>, "isBooked": <bool> }
  */
+
+/**
+ * Appointment endpoints:
+ *   Topic: doctors/<instance>/<action>
+ *     where instance is id of the service instance, action is 'get' or '
+ */
 mqttClient.on("message", async (topic, message) => {
   console.log(`Received request [${topic}]:${message.toString()}`); // DEBUG
 
-  // correct topic is matched, action put into capture group 1 (params[1]),
+  // correct topic is matched,
+  // endpoint put into capture group 1 (params[1]),
+  // action punt into capture group 2 (params[2])
   // params[0] is the whole match
-  const params = /^\w+\/(\w+)$/g.exec(topic);
-  if (!params || !params[1]) {
-    console.error("Invalid topic. Expected format: <instanceId>/<action>");
+  const params = /^\w+\/(\w+)\/(\w+)$/g.exec(topic);
+  if (params?.length != 3) {
+    console.error(
+      "Invalid topic. Expected format: <instanceId>/<endpoint>/<action>",
+    );
     return;
   }
-
-  const payload: Query = JSON.parse(message.toString());
-  const query = {
+  const payload = JSON.parse(message.toString());
+  const query: Query = {
     timestamp: payload.timestamp,
-    action: params[1],
-    doctorId: new ObjectId(payload.doctorId),
-    startTime: new Date(payload.startTime),
+    action: params[2],
+    ...(payload.doctorId && { doctorId: new ObjectId(payload.doctorId) }),
+    ...(payload.startTime && { startTime: new Date(payload.startTime) }),
   };
+  // handle requests
+  switch (params[1]) {
+    case "appointments": {
+      if (
+        !query.action ||
+        !query.doctorId ||
+        (query.action != "get" && !query.startTime)
+      ) {
+        console.error("Invalid query:");
+        console.log(query);
+        break;
+      }
 
-  if (
-    !query.action ||
-    !query.doctorId ||
-    (query.action != "get" && !query.startTime)
-  ) {
-    console.error("Invalid query:");
-    console.log(query);
+      await handleAppointmentsRequest(query);
+      break;
+    }
+
+    case "doctors": {
+      switch (params[2]) {
+        case "get":
+          await getAllDoctors(query);
+          break;
+      }
+      break;
+    }
   }
+});
 
-  let slot;
+// TODO: explicitly close connections
+
+async function handleAppointmentsRequest(query: Query) {
   const responseTopic = `${serviceId}/res/${query.timestamp}`;
+  let slot;
 
-  // handle request
   switch (query.action) {
     case "get":
       let doctorSlots = await slots
@@ -244,6 +261,10 @@ mqttClient.on("message", async (topic, message) => {
       console.error("Invalid action");
       return;
   }
-});
+}
 
-// TODO: close connections
+async function getAllDoctors(query: Query) {
+  const responseTopic = `${serviceId}/res/${query.timestamp}`;
+  let allDoctors = await doctors.find().toArray();
+  mqttClient.publish(responseTopic, JSON.stringify(allDoctors));
+}
