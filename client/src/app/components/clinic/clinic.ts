@@ -3,20 +3,20 @@ import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIcon } from '@angular/material/icon';
 import { Router } from '@angular/router';
-import { Doctor } from '../../../../types/doctor';
+import { Clinic } from '../../types/clinic';
 
 @Component({
-  selector: 'doctor',
-  templateUrl: './doctor.html',
-  styleUrl: './doctor.css',
+  selector: 'clinic',
+  templateUrl: './clinic.html',
+  styleUrl: './clinic.css',
   imports: [MatCardModule, MatButtonModule, MatIcon],
 })
-export class DoctorComponent {
-  @Input() doctor!: Doctor;
+export class ClinicComponent {
+  @Input() clinic!: Clinic;
 
   constructor(private router: Router) {}
 
-  public book() {
-    this.router.navigateByUrl(`/book/${this.doctor._id}`);
+  public goToClinic() {
+    this.router.navigateByUrl(`/clinic/${this.clinic._id}`);
   }
 }

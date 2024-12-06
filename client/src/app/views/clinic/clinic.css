@@ -1,0 +1,22 @@
+h1 {
+  color: white;
+}
+
+.map-container {
+  position: relative;
+  width: 100%;
+  height: 500px;
+  padding: 30px;
+  box-sizing: border-box;
+}
+
+.map-frame {
+  border-radius: var(--mat-sys-corner-large);
+  overflow: hidden;
+  height: 100%;
+  width: 100%;
+}
+
+#map {
+  height: 100%;
+}

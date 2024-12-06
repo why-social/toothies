@@ -1,13 +1,12 @@
 import { Component, Input } from '@angular/core';
-import { DoctorComponent } from './doctor/doctor';
-import { MatPaginator } from '@angular/material/paginator';
+import { DoctorComponent } from '../../../components/doctor/doctor';
 import { Doctor } from '../../../types/doctor';
 
 @Component({
   selector: 'doctors',
   templateUrl: './doctors.html',
   styleUrl: './doctors.css',
-  imports: [DoctorComponent, MatPaginator],
+  imports: [DoctorComponent],
 })
 export class Doctors {
   @Input() doctors!: Array<Doctor>;
