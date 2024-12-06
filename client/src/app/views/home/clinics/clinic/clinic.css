@@ -2,6 +2,10 @@
 	color: var(--mat-sys-on-surface);
 }
 
+mat-card-content {
+	box-sizing: border-box;
+}
+
 mat-card-actions {
 	flex-direction: row-reverse;
 }

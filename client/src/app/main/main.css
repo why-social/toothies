@@ -1,14 +1,24 @@
 main {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-nav {
-  height: 50px;
-  background: blue;
-}
-
-content {
   position: relative;
+  box-sizing: border-box;
+  display: flex;
+  overflow: hidden;
+  width: 100%;
+  flex-direction: column;
+  flex-grow: 1;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+header {
+  box-sizing: border-box;
+  position: sticky;
+  top: 0;
+  width: 100%;
+  z-index: 10000;
+  padding: 16px;
+  margin: 1rem;
+  font-size: 1.5rem;
+  color: var(--mat-sys-on-background);
+  background: var(--mat-sys-background);
 }

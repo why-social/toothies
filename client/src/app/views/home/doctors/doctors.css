@@ -13,6 +13,6 @@
 
 @media screen and (min-width: 992px) {
   .container > * {
-    width: calc(50% - 0.5rem);
+    width: calc(50% - .5rem);
   }
 }
