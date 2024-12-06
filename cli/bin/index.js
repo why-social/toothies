@@ -18,12 +18,10 @@ import slotsCommand from "../src/commands/slots/slotsCommand.js";
 program
 	.version("0.0.1")
 	.description("Doctor CLI")
-	.option("-n, --name <type>", "Add your name")
-	.action((options) => {
-		updateAuthToken();
-		console.log(chalk.blue(`Hey, ${options.name}!`));
-		console.log(chalk.yellow(`Token: ${process.env.ACCESS_TOKEN}`));
-	});
+
+program.hook('preAction', () => {
+	updateAuthToken();
+});
 
 program.addCommand(loginCommand);
 program.addCommand(logoutCommand);
