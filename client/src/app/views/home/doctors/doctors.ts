@@ -19,10 +19,10 @@ export class Doctors {
     this.http.get<Array<any>>(`http://localhost:3000/doctors`).subscribe({
       next: (data) => {
         this.doctors = data.map(
-          (it) =>
+          (it: Doctor) =>
             ({
               name: it.name,
-              doctorId: it._id,
+              _id: it._id,
               type: it.type,
             }) as Doctor,
         );

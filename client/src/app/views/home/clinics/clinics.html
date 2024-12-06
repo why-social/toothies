@@ -1,0 +1,8 @@
+<div class="container">
+  @for (clinic of clinics; track $index) {
+    <clinic [clinic]="clinic" />
+  }
+</div>
+
+<mat-paginator [length]="1000" [pageSize]="10">
+</mat-paginator>
