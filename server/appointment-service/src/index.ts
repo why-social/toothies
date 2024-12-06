@@ -184,6 +184,7 @@ async function handleAppointmentsRequest(payload: any) {
       break;
 
     case "book": // book a slot
+	  payload.startTime = new Date(payload.startTime);
       slot = await slots.findOne({
         doctorId: payload.doctorId,
         startTime: payload.startTime,
@@ -230,6 +231,7 @@ async function handleAppointmentsRequest(payload: any) {
       break;
 
     case "cancel": // cancel a slot
+	payload.startTime = new Date(payload.startTime);
       slot = await slots.findOne({
         doctorId: payload.doctorId,
         startTime: payload.startTime,
