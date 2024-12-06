@@ -12,8 +12,17 @@ const logoutCommand = new Command('logout')
             return console.error('Error reading the .env file:', err);
         }
 
+		let tokenRemoved = false;
+
         // Remove the ACCESS_TOKEN line
-        const updatedData = data.split('\n').filter(line => !line.startsWith('ACCESS_TOKEN=')).join('\n');
+        const updatedData = data.split('\n').filter(line =>{
+			if(line.startsWith('ACCESS_TOKEN=')) {
+				tokenRemoved = true;
+				return false;
+			} else {
+				return true;
+			}
+		}).join('\n');
 
         // Write the updated content back to the .env file
         fs.writeFile(tokenPath, updatedData, (err) => {
@@ -24,7 +33,11 @@ const logoutCommand = new Command('logout')
 
 		process.env.ACCESS_TOKEN = undefined;
 
-		console.log("Logged out successfully");
+		if (tokenRemoved) {
+			console.log('Logged out successfully');
+		} else {
+			console.log('Already logged out');
+		}
     });
 });
 

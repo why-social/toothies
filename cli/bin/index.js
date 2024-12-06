@@ -5,9 +5,14 @@ import chalk from "chalk";
 import fs from "fs";
 import dotenv from "dotenv";
 
-import loginCommand from "./commands/loginCommand.js";
-import logoutCommand from "./commands/logoutCommand.js";
-import slotsCommand from "./commands/slots/slotsCommand.js";
+dotenv.config();
+
+if (process.env.API_URL === undefined)
+	process.env.API_URL = "http://localhost:3000";
+
+import loginCommand from "../src/commands/loginCommand.js";
+import logoutCommand from "../src/commands/logoutCommand.js";
+import slotsCommand from "../src/commands/slots/slotsCommand.js";
 
 
 program
