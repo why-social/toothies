@@ -1,3 +1,5 @@
+import { createServer } from "http";
+import { Server } from "socket.io";
 import express, { Express, Request, Response, NextFunction } from "express";
 import cors from "cors";
 import mqtt, { IClientOptions, IClientPublishOptions } from "mqtt";
@@ -6,6 +8,10 @@ import { ServicesList } from "./types/ServicesList";
 
 const app: Express = express();
 const port: number = 3000;
+const httpServer = createServer(app);
+const socket = new Server(httpServer, {
+  cors: { origin: "*" },
+});
 
 const mqttOptions: IClientOptions = {
   username: "service",
@@ -41,6 +47,13 @@ mqttClient.on("connect", () => {
     console.log(`Subscribed to ${heartbeatTopic}`);
   });
 
+  // Subscrive to live calendar updates
+  mqttClient.subscribe("appointments/+", (err) => {
+    if (err) return console.error("Failed to subscribe to heartbeat topic");
+
+    console.log("Subscribed to appointments/+");
+  });
+
   // Handle heartbeat messages, if a service is not in the list, add it
   mqttClient.on("message", (topic, message) => {
     if (topic === heartbeatTopic) {
@@ -62,6 +75,16 @@ mqttClient.on("connect", () => {
       }
     }
   });
+});
+
+// forward live update to corresponding socket namespace
+mqttClient.on("message", (topic, message) => {
+  const match = /^appointments\/(\w+)$/g.exec(topic);
+  if (match && match.length == 2) {
+    console.log(`Live update: [${topic}]: ${message.toString()}`);
+    socket.emit(match[1], message.toString());
+    console.log(`Emitted to socket [${match[1]}]: ${message.toString()}`);
+  }
 });
 
 function mqttPublishWithResponse(
@@ -210,6 +233,6 @@ app.use("/", (req: Request, res: Response, next: NextFunction) => {
   res.send("API Gateway");
 });
 
-app.listen(port, () => {
+httpServer.listen(port, () => {
   console.log(`API Gateway listening at http://localhost:${port}`);
 });
