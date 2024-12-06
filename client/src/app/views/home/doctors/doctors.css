@@ -1,0 +1,18 @@
+.container {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  padding: 1rem;
+  box-sizing: border-box;
+  gap: 1rem;
+}
+
+.container > * {
+  width: 100%;
+}
+
+@media screen and (min-width: 992px) {
+  .container > * {
+    width: calc(50% - 0.5rem);
+  }
+}
