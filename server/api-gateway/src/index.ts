@@ -3,6 +3,7 @@ import cors from "cors";
 import mqtt, { IClientOptions, IClientPublishOptions } from "mqtt";
 import { Service } from "./types/Service";
 import { ServicesList } from "./types/ServicesList";
+import { authMiddleware } from './middleware/auth';
 
 const app: Express = express();
 const port: number = 3000;
@@ -204,6 +205,26 @@ app.delete("/appointments", (req: Request, res: Response) => {
     doctorId: req.body.doctorId,
     startTime: req.body.startTime,
   });
+});
+
+/**
+ * Create a slot for a doctor
+ * Request Format:
+ * 		Endpoint: /slots
+ *   	Body: { startDate: <Date>, endDate: <Date> }
+ */
+app.post("/slots", authMiddleware, (req: Request, res: Response) => {
+	// Check if the user is authorized
+	if(!req.isAuth || !req.user) {
+		res.status(401).send("Unauthorized");
+		return;
+	}
+
+	// Publish the request to the MQTT broker
+	mqttPublishWithResponse(req, res, "slots/post", {
+		doctorId: req.user,
+		body: req.body,
+	});
 });
 
 app.use("/", (req: Request, res: Response, next: NextFunction) => {
