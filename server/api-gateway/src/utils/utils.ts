@@ -8,7 +8,7 @@ function createUserToken(id:string) {
 	return jwt.sign({
 		userId: id,
 	},
-		JWT_SECRET_KEY, { expiresIn: "24h" }
+		JWT_SECRET_KEY, { expiresIn: "48h" }
 	);
 }
 
