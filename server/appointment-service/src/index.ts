@@ -6,13 +6,6 @@ import dotenv from "dotenv";
 import { Service } from "./types/Service";
 import { MongoClient, ObjectId } from "mongodb";
 
-interface Query {
-  timestamp: Number;
-  action: string;
-  doctorId?: ObjectId;
-  startTime?: Date;
-}
-
 dotenv.config();
 
 if (!process.env.ATLAS_CONN_STR) {
@@ -155,9 +148,12 @@ mqttClient.on("message", async (topic, message) => {
 
 	case "slots": {
 		switch (action) {
-		case "post":
-			await createSlot(payload);
-			break;
+			case "post":
+				await createSlot(payload);
+				break;
+			case "delete":
+				await deleteSlot(payload);
+				break;
 		}
 		break;
 	}
@@ -181,6 +177,7 @@ async function handleAppointmentsRequest(payload: any) {
       break;
 
     case "book": // book a slot
+	  payload.startTime = new Date(payload.startTime);
       slot = await slots.findOne({
         doctorId: payload.doctorId,
         startTime: payload.startTime,
@@ -227,6 +224,7 @@ async function handleAppointmentsRequest(payload: any) {
       break;
 
     case "cancel": // cancel a slot
+	payload.startTime = new Date(payload.startTime);
       slot = await slots.findOne({
         doctorId: payload.doctorId,
         startTime: payload.startTime,
@@ -288,8 +286,8 @@ async function createSlot(payload: any){
 	if(!payload.doctorId || !payload.body.startDate || !payload.body.endDate)
 		return mqttClient.publish(responseTopic, JSON.stringify({message: "Invalid request"}));
 
-	const startDate = new Date(payload.body.startDate);
-	const endDate = new Date(payload.body.endDate);
+	const startDate = new Date(Number(payload.body.startDate));
+	const endDate = new Date(Number(payload.body.endDate));
 	const doctorId = new ObjectId(payload.doctorId);
 
 	// TODO (once doctors are added to doctors collection) Check if the doctor exists
@@ -327,11 +325,33 @@ async function createSlot(payload: any){
 
 	const slot = {
 		doctorId: doctorId,
-		startDate: startDate,
+		startTime: startDate,
 		endTime: endDate,
 		isBooked: false,
 		test: true,
 	};
 	await slots.insertOne(slot);
 	mqttClient.publish(responseTopic, JSON.stringify({message: "Slot created"}));
+}
+
+async function deleteSlot(payload: any){
+	const responseTopic = `${serviceId}/res/${payload.timestamp}`;
+	if(!payload.doctorId || !payload.body.startDate)
+		return mqttClient.publish(responseTopic, JSON.stringify({message: "Invalid request"}));
+
+	const startDate = new Date(Number(payload.body.startDate));
+	const doctorId = new ObjectId(payload.doctorId);
+
+	// Check if the time is between 8 am and 8 pm
+	if(startDate.getHours() < 8 || startDate.getHours() > 20)
+		return mqttClient.publish(responseTopic, JSON.stringify({message: "Invalid time range"}));
+
+	const slot = await slots.findOne({doctorId: doctorId, startTime: startDate});
+
+	// Check if the slot exists
+	if(!slot)
+		return mqttClient.publish(responseTopic, JSON.stringify({message: "Slot not found"}));
+
+	await slots.deleteOne({_id: slot._id});
+	mqttClient.publish(responseTopic, JSON.stringify({message: "Slot deleted"}));
 }

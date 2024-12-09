@@ -4,6 +4,7 @@ import mqtt, { IClientOptions, IClientPublishOptions } from "mqtt";
 import { Service } from "./types/Service";
 import { ServicesList } from "./types/ServicesList";
 import { authMiddleware } from './middleware/auth';
+import { createUserToken } from './utils/utils';
 
 const app: Express = express();
 const port: number = 3000;
@@ -194,11 +195,21 @@ app.post("/appointments", (req: Request, res: Response) => {
  *      Endpoint: /appointments
  *      Body: { doctorId: <ObjectId>, startTime: <Date> }
  */
-app.delete("/appointments", (req: Request, res: Response) => {
-  if (!req.body?.doctorId || !req.body?.startTime) {
+app.delete("/appointments", authMiddleware, (req: Request, res: Response) => {
+  if (!req.body?.startTime) {
     res.status(400).send("Error: Invalid request");
     console.log(req.body);
     return;
+  }
+
+  // TODO change the endpoint to use the doctorId from the token only
+
+  if(req.isAuth && req.user) { // If the user is authorized, doctorId is the user token
+	req.body.doctorId = req.user;
+  } else if(!req.body?.doctorId) { // If the user is not authorized, doctorId must be provided
+	res.status(401).send("Error: Invalid request");
+	console.log(req.body);
+	return;
   }
 
   mqttPublishWithResponse(req, res, "appointments/cancel", {
@@ -226,6 +237,35 @@ app.post("/slots", authMiddleware, (req: Request, res: Response) => {
 		body: req.body,
 	});
 });
+
+/**
+ * Delete a slot for a doctor
+ * Request Format:
+ * 		Endpoint: /slots
+ *  	Body: { startDate: <Date> }
+ */
+app.delete("/slots", authMiddleware, (req: Request, res: Response) => {
+	// Check if the user is authorized
+	if(!req.isAuth || !req.user) {
+		res.status(401).send("Unauthorized");
+		return;
+	}
+
+	// Publish the request to the MQTT broker
+	mqttPublishWithResponse(req, res, "slots/delete", {
+		doctorId: req.user,
+		body: req.body,
+	});
+});
+
+app.post("/generateToken", (req: Request, res: Response) => {
+	if(!req.body?.id) {
+		res.status(400).send("Error: Invalid request");
+		return;
+	}
+	const token = createUserToken(req.body.id);
+	res.status(200).send(token);
+})
 
 app.use("/", (req: Request, res: Response, next: NextFunction) => {
   res.send("API Gateway");
