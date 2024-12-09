@@ -203,12 +203,38 @@ async function handleAppointmentsRequest(payload: any) {
 
   switch (payload.action) {
     case "get":
-      let doctorSlots = await slots
-        .find({ doctorId: payload.doctorId })
+      const doctorSlots = await slots
+        .find(
+          { doctorId: payload.doctorId },
+          { projection: { _id: 0, doctorId: 0 } },
+        )
         .toArray();
-      console.log(doctorSlots);
-      mqttClient.publish(responseTopic, JSON.stringify(doctorSlots));
-      console.log("Published ", doctorSlots);
+
+      const doctor = await doctors.findOne({ _id: payload.doctorId });
+      const clinic = await clinics.findOne({ _id: doctor?.clinic });
+      if (!doctor || !clinic) {
+        mqttClient.publish(
+          responseTopic,
+          "Could not fetch doctor data for slot",
+        );
+        break;
+      }
+
+      const res = {
+        doctor: {
+          _id: doctor._id,
+          name: doctor.name,
+          clinic: {
+            _id: clinic._id,
+            name: clinic.name,
+          },
+        },
+        slots: doctorSlots,
+      };
+
+      console.log(res);
+      mqttClient.publish(responseTopic, JSON.stringify(res));
+      console.log("Published ", res);
       break;
 
     case "book": // book a slot
