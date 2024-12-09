@@ -22,11 +22,10 @@ export class Booking {
 
   slots: Array<Slot> = [];
   private doctorId: string | null = null;
+  private openedDialog: Slot | null = null;
 
   public ngOnInit() {
-    console.log("init");
     this.route.paramMap.subscribe((params) => {
-      console.log("subscribe");
       this.doctorId = params.get("id");
 
       if (this.doctorId) {
@@ -36,7 +35,16 @@ export class Booking {
           let slot = this.slots.find(
             (e) => e.startTime.toISOString() == update.startTime,
           );
-          if (slot) slot.isBooked = update.isBooked;
+
+          if (slot) {
+            slot.isBooked = update.isBooked;
+            if (this.openedDialog == slot) {
+              this.dialog.closeAll();
+              alert(
+                "Unfortunately, this slot has been booked by someone else!",
+              );
+            }
+          }
         });
       }
     });
@@ -65,6 +73,7 @@ export class Booking {
   }
 
   public openDialog(slot: Slot) {
+    this.openedDialog = slot;
     this.dialog
       .open(Dialog, {
         width: "250px",
@@ -85,6 +94,7 @@ export class Booking {
       })
       .afterClosed()
       .subscribe((result) => {
+        this.openedDialog = null;
         if (result == "success") {
           if (slot.isBooked) {
             this.http
