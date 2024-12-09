@@ -5,10 +5,10 @@ import axios from "axios";
 const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
 const timeRegex = /^\d{2}:\d{2}$/;
 
-const deleteSlot = new Command("delete")
-.description(`Delete a slot with specified date and time`)
-.requiredOption("-d, --date <date>", `Date of the slot in the format YYYY-MM-DD ${chalk.dim("(required)")}`)
-.requiredOption("-s, --startTime <time>", `Start time of the slot in the format HH:MM ${chalk.dim("(required)")}`)
+const cancelAppointment = new Command("delete")
+.description(`Cancel an appointment with specified date and time`)
+.requiredOption("-d, --date <date>", `Date of the appointment in the format YYYY-MM-DD ${chalk.dim("(required)")}`)
+.requiredOption("-s, --startTime <time>", `Start time of the appointment in the format HH:MM ${chalk.dim("(required)")}`)
 .action(async (options) => {
 	// Check if the user is logged in
 	if (!process.env.ACCESS_TOKEN) return console.error("Unauthorized");
@@ -26,21 +26,21 @@ const deleteSlot = new Command("delete")
 	// Convert the dates to milliseconds
 	startDate = startDate.getTime();
 
-	// Make an api call to delete a slot and handle the response
+	// Make an api call to delete an appointment and handle the response
 	try {
-		const res = await axios.delete(`${process.env.API_URL}/slots`,
-		{ data: { startDate }, headers: 
+		const res = await axios.delete(`${process.env.API_URL}/appointments`,
+		{ data: { startTime: startDate }, headers: 
 			{ Authorization: `Bearer ${process.env.ACCESS_TOKEN}` }
 		});
 		if(res.data?.message) console.log(res.data.message);
 	} catch (error) {
 		if (error.response && error.response.data) {
-			console.error("Error deleting the slot:", error.response.data);
+			console.error("Error deleting the appointment:", error.response.data);
 		} else {
-			console.error("Error deleting the slot:", error.message);
+			console.error("Error deleting the appointment:", error.message);
 		}
 	}
 
 });
 
-export default deleteSlot;
+export default cancelAppointment;

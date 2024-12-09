@@ -6,13 +6,6 @@ import dotenv from "dotenv";
 import { Service } from "./types/Service";
 import { MongoClient, ObjectId } from "mongodb";
 
-interface Query {
-  timestamp: Number;
-  action: string;
-  doctorId?: ObjectId;
-  startTime?: Date;
-}
-
 dotenv.config();
 
 if (!process.env.ATLAS_CONN_STR) {
