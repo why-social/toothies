@@ -15,8 +15,8 @@ import {
 } from '@angular/material/dialog';
 
 @Component({
-  templateUrl: './dialog.html',
-  styleUrl: './dialog.css',
+  templateUrl: './booking.dialog.html',
+  styleUrl: './booking.dialog.css',
   imports: [
     MatButtonModule,
     MatDialogActions,
@@ -26,8 +26,8 @@ import {
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class Dialog {
-  readonly dialogRef = inject(MatDialogRef<Dialog>);
+export class BookingDialogComponent {
+  readonly dialogRef = inject(MatDialogRef<BookingDialogComponent>);
 
   constructor(
     @Inject(MAT_DIALOG_DATA)

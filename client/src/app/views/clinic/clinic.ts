@@ -7,11 +7,11 @@ import {
   ElementRef,
   inject,
 } from '@angular/core';
-import { Doctor } from '../../types/doctor';
-import { Clinic } from '../../types/clinic';
+import { Doctor } from '../../components/doctor/doctor.interface';
+import { Clinic } from '../../components/clinic/clinic.interface';
 import { HttpClient } from '@angular/common/http';
-import { DoctorComponent } from '../../components/doctor/doctor';
-import { LeafletUtil } from '../../types/leaflet';
+import { DoctorComponent } from '../../components/doctor/doctor.component';
+import { LeafletUtil } from '../../types/leaflet.interface';
 import { MatIcon } from '@angular/material/icon';
 import * as Leaflet from 'leaflet';
 
@@ -20,9 +20,9 @@ import * as Leaflet from 'leaflet';
   styleUrl: './clinic.css',
   imports: [DoctorComponent, MatIcon],
 })
-export class ClinicView implements AfterViewInit, OnInit {
+export class ClinicView implements AfterViewInit {
   private http = inject(HttpClient);
-  private map: any;
+  private map!: Leaflet.Map;
 
   @ViewChild('map') mapElement!: ElementRef;
 
@@ -34,9 +34,7 @@ export class ClinicView implements AfterViewInit, OnInit {
       longitude: 11.9746,
       city: 'Gothenburg',
       address: 'Plejadgatan 22',
-      postCode: 41757,
     },
-    doctors: ['1', '2'],
   };
 
   doctors!: Array<Doctor>;
@@ -62,8 +60,8 @@ export class ClinicView implements AfterViewInit, OnInit {
     });
   }
 
-  ngOnInit(): void {
-    this.map = Leaflet.map('map', {
+  ngAfterViewInit(): void {
+    this.map = Leaflet.map(this.mapElement.nativeElement, {
       center: [57.7089, 11.9746], // Gothenburg
       zoom: 9,
     });
@@ -80,9 +78,7 @@ export class ClinicView implements AfterViewInit, OnInit {
       [this.clinic.location.latitude, this.clinic.location.longitude],
       { icon: LeafletUtil.marker },
     ).addTo(this.map);
-  }
 
-  ngAfterViewInit(): void {
     let currentRect!: DOMRectReadOnly;
 
     new ResizeObserver((observerEntry: Array<ResizeObserverEntry>) => {

@@ -3,13 +3,14 @@ import { MatTabGroup, MatTab } from '@angular/material/tabs';
 import { HttpClient } from '@angular/common/http';
 import { Doctors } from './doctors/doctors';
 import { Clinics } from './clinics/clinics';
-import { Clinic } from '../../types/clinic';
-import { Doctor } from '../../types/doctor';
+import { ClinicMap } from './map/map';
+import { Clinic } from '../../components/clinic/clinic.interface';
+import { Doctor } from '../../components/doctor/doctor.interface';
 
 @Component({
   templateUrl: './home.html',
   styleUrl: './home.css',
-  imports: [Clinics, Doctors, MatTabGroup, MatTab],
+  imports: [Clinics, Doctors, MatTabGroup, MatTab, ClinicMap],
 })
 export class Home {
   private http = inject(HttpClient);
@@ -19,13 +20,31 @@ export class Home {
       _id: '1',
       name: 'The clinic',
       location: {
-        latitude: 40,
-        longitude: 40,
+        latitude: 57.7089,
+        longitude: 11.9746,
         city: 'Gothenburg',
         address: 'Plejadgatan 22',
-        postCode: 41757,
-      },
-      doctors: ['1', '2'],
+      }
+    },
+    {
+      _id: '2',
+      name: 'The clinic',
+      location: {
+        latitude: 57.6089,
+        longitude: 11.846,
+        city: 'Gothenburg',
+        address: 'Plejadgatan 20',
+      }
+    },
+    {
+      _id: '3',
+      name: 'The clinic',
+      location: {
+        latitude: 57.7189,
+        longitude: 12,
+        city: 'Gothenburg',
+        address: 'Plejadgatan 24',
+      }
     },
   ];
 

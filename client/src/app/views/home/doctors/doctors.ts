@@ -1,6 +1,6 @@
 import { Component, Input } from '@angular/core';
-import { DoctorComponent } from '../../../components/doctor/doctor';
-import { Doctor } from '../../../types/doctor';
+import { DoctorComponent } from '../../../components/doctor/doctor.component';
+import { Doctor } from '../../../components/doctor/doctor.interface';
 
 @Component({
   selector: 'doctors',

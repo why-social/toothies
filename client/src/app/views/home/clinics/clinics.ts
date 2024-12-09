@@ -1,6 +1,6 @@
 import { Component, Input } from '@angular/core';
-import { ClinicComponent } from '../../../components/clinic/clinic';
-import { Clinic } from '../../../types/clinic';
+import { ClinicComponent } from '../../../components/clinic/clinic.component';
+import { Clinic } from '../../../components/clinic/clinic.interface';
 
 @Component({
   selector: 'clinics',

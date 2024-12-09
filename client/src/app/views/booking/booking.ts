@@ -1,8 +1,8 @@
 import { Component, inject, Injectable } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
-import { Calendar } from '../../components/calendar/calendar';
-import { Slot } from '../../types/slots';
-import { Dialog } from './dialog/dialog';
+import { CalendarComponent } from '../../components/calendar/calendar.component';
+import { CalendarSlot } from '../../components/calendar/calendar.slots.interface';
+import { BookingDialogComponent } from '../../components/booking/dialog/booking.dialog';
 import { HttpClient } from '@angular/common/http';
 import { ActivatedRoute } from '@angular/router';
 
@@ -10,14 +10,14 @@ import { ActivatedRoute } from '@angular/router';
 @Component({
   templateUrl: './booking.html',
   styleUrl: './booking.css',
-  imports: [Calendar],
+  imports: [CalendarComponent],
 })
 export class Booking {
   readonly dialog = inject(MatDialog);
   private http = inject(HttpClient);
   private route = inject(ActivatedRoute);
 
-  slots: Array<Slot> = [];
+  slots: Array<CalendarSlot> = [];
   private doctorId: string | null = null;
 
   public ngOnInit() {
@@ -30,7 +30,7 @@ export class Booking {
   private fetchSlots() {
     this.http
       .get<
-        Array<Slot>
+        Array<CalendarSlot>
       >(`http://localhost:3000/appointments?doctorId=${this.doctorId}`)
       .subscribe({
         next: (data) => {
@@ -40,7 +40,7 @@ export class Booking {
                 startTime: new Date(it.startTime),
                 endTime: new Date(it.endTime),
                 isBooked: it.isBooked,
-              }) as Slot,
+              }) as CalendarSlot,
           );
         },
         error: (error) => {
@@ -49,9 +49,9 @@ export class Booking {
       });
   }
 
-  public openDialog(slot: Slot) {
+  public openDialog(slot: CalendarSlot) {
     this.dialog
-      .open(Dialog, {
+      .open(BookingDialogComponent, {
         width: '250px',
         data: {
           title: slot.isBooked ? 'Cancel Booking' : 'Confirm Booking',
