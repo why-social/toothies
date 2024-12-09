@@ -12,12 +12,13 @@ import { Clinic } from '../../types/clinic';
 import { HttpClient } from '@angular/common/http';
 import { DoctorComponent } from '../../components/doctor/doctor';
 import { LeafletUtil } from '../../types/leaflet';
+import { MatIcon } from '@angular/material/icon';
 import * as Leaflet from 'leaflet';
 
 @Component({
   templateUrl: './clinic.html',
   styleUrl: './clinic.css',
-  imports: [DoctorComponent],
+  imports: [DoctorComponent, MatIcon],
 })
 export class ClinicView implements AfterViewInit, OnInit {
   private http = inject(HttpClient);

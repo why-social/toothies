@@ -1,13 +1,24 @@
-<h1>{{ clinic.name }}</h1>
-
-<div class="map-container">
-  <div class="map-frame">
-    <div id="map" #map></div>
-  </div>
-</div>
-
 <div class="container">
-  @for (doctor of doctors; track $index) {
-    <doctor [doctor]="doctor" />
-  }
+  <div class="details">
+    <h2>{{ clinic.name }}</h2>
+
+    <div class="location">
+      <mat-icon class="material-icons-outlined"> location_on </mat-icon>
+      {{ clinic.location.city + ", " + clinic.location.address }}
+    </div>
+  </div>
+
+  <div class="map-container">
+    <div class="map-frame">
+      <div id="map" #map></div>
+    </div>
+  </div>
+
+  <h2>Doctors</h2>
+
+  <div class="doctors">
+    @for (doctor of doctors; track $index) {
+      <doctor [doctor]="doctor" />
+    }
+  </div>
 </div>

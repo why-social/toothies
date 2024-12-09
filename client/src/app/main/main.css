@@ -6,7 +6,6 @@ main {
   width: 100%;
   flex-direction: column;
   flex-grow: 1;
-  gap: 1rem;
   padding: 1rem;
 }
 
@@ -16,9 +15,12 @@ header {
   top: 0;
   width: 100%;
   z-index: 10000;
-  padding: 16px;
-  margin: 1rem;
+  padding-top: 1rem;
+  padding-left: 1rem;
+  padding-right: 1rem;
+  user-select: none;
   font-size: 1.5rem;
   color: var(--mat-sys-on-background);
-  background: var(--mat-sys-background);
+  background: rgba(18, 20, 14, 0.9);
+  backdrop-filter: blur(8px);
 }
