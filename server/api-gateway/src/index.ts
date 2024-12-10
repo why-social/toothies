@@ -5,8 +5,8 @@ import cors from "cors";
 import mqtt, { IClientOptions, IClientPublishOptions } from "mqtt";
 import { Service } from "./types/Service";
 import { ServicesList } from "./types/ServicesList";
-import { authMiddleware } from './middleware/auth';
-import { createUserToken } from './utils/utils';
+import { authMiddleware } from "./middleware/auth";
+import { createUserToken } from "./utils/utils";
 
 const app: Express = express();
 const port: number = 3000;
@@ -166,17 +166,39 @@ function mqttPublishWithResponse(
 }
 
 // Clinic enpoints
-
 /**
- *  Get appointment slots of a doctor
+ *  Get all clinics
  *  Request Format:
  *      Endpoint: /clinics
+ */
+app.get("/clinics", (req: Request, res: Response) => {
+  mqttPublishWithResponse(req, res, "clinics/get");
+});
+
+/**
+ *  Get a clinic
+ *  Request Format:
+ *      Endpoint: /clinics/:id
+ */
+app.get("/clinics/:id", (req: Request, res: Response) => {
+  if (!req.params.id) {
+    res.status(400).send("No id");
+  }
+  mqttPublishWithResponse(req, res, "clinics/get", {
+    clinicId: req.params.id,
+  });
+});
+
+/**
+ *  Get all doctors
+ *  Request Format:
+ *      Endpoint: /doctors
  */
 app.get("/doctors", (req: Request, res: Response) => {
   mqttPublishWithResponse(req, res, "doctors/get");
 });
 
-// Doctor endpoints
+// Booking endpoints
 /**
  *  Get appointment slots of a doctor
  *  Request Format:
@@ -238,11 +260,11 @@ app.delete("/appointments", authMiddleware, (req: Request, res: Response) => {
  *   	Body: { startDate: <Date>, endDate: <Date> }
  */
 app.post("/slots", authMiddleware, (req: Request, res: Response) => {
-	// Check if the user is authorized
-	if(!req.isAuth || !req.user) {
-		res.status(401).send("Unauthorized");
-		return;
-	}
+  // Check if the user is authorized
+  if (!req.isAuth || !req.user) {
+    res.status(401).send("Unauthorized");
+    return;
+  }
 
 	// Publish the request to the MQTT broker
 	mqttPublishWithResponse(req, res, "slots/create", {
@@ -258,17 +280,17 @@ app.post("/slots", authMiddleware, (req: Request, res: Response) => {
  *  	Body: { startDate: <Date> }
  */
 app.delete("/slots", authMiddleware, (req: Request, res: Response) => {
-	// Check if the user is authorized
-	if(!req.isAuth || !req.user) {
-		res.status(401).send("Unauthorized");
-		return;
-	}
+  // Check if the user is authorized
+  if (!req.isAuth || !req.user) {
+    res.status(401).send("Unauthorized");
+    return;
+  }
 
-	// Publish the request to the MQTT broker
-	mqttPublishWithResponse(req, res, "slots/delete", {
-		doctorId: req.user,
-		body: req.body,
-	});
+  // Publish the request to the MQTT broker
+  mqttPublishWithResponse(req, res, "slots/delete", {
+    doctorId: req.user,
+    body: req.body,
+  });
 });
 
 /**
@@ -292,13 +314,13 @@ app.patch("/slots", authMiddleware, (req: Request, res: Response) => {
 });
 
 app.post("/generateToken", (req: Request, res: Response) => {
-	if(!req.body?.id) {
-		res.status(400).send("Error: Invalid request");
-		return;
-	}
-	const token = createUserToken(req.body.id);
-	res.status(200).send(token);
-})
+  if (!req.body?.id) {
+    res.status(400).send("Error: Invalid request");
+    return;
+  }
+  const token = createUserToken(req.body.id);
+  res.status(200).send(token);
+});
 
 app.use("/", (req: Request, res: Response, next: NextFunction) => {
   res.send("API Gateway");

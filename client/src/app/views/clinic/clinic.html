@@ -1,0 +1,35 @@
+@if (clinic) {
+  <div class="details">
+    <h2>{{ clinic.name }}</h2>
+
+    <div class="location">
+      <mat-icon class="material-icons-outlined"> location_on </mat-icon>
+      {{ clinic.location.city + ", " + clinic.location.address }}
+    </div>
+  </div>
+
+  <div class="map-container">
+    <div class="map-frame">
+      <div id="map" #map></div>
+    </div>
+  </div>
+
+  @if (clinic.doctors && clinic.doctors.length > 0) {
+    <h2>Doctors</h2>
+
+    <div class="doctors">
+      @for (doctor of clinic.doctors; track $index) {
+        <doctor [doctor]="doctor" />
+      }
+    </div>
+  } @else {
+    <div class="not-found">This clinic has no doctors.</div>
+  }
+} @else if (clinic === null) {
+  <div class="not-found">
+    Clinic not found.<br />
+    <button mat-button (click)="router.navigate(['/'])">Go home</button>
+  </div>
+} @else {
+  <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+}

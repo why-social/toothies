@@ -1,4 +1,4 @@
-import mqtt, { IClientOptions, IClientPublishOptions } from "mqtt";
+import mqtt, { IClientOptions } from "mqtt";
 import uniqid from "uniqid";
 import Docker from "dockerode";
 import os from "os";
@@ -15,6 +15,7 @@ const atlasClient = new MongoClient(process.env.ATLAS_CONN_STR);
 const db = atlasClient.db("primary");
 const slots = db.collection("slots");
 const doctors = db.collection("doctors");
+const clinics = db.collection("clinics");
 
 let containerName: string;
 async function getContainerName(): Promise<string> {
@@ -54,10 +55,16 @@ mqttClient.on("connect", async () => {
   containerName = await getContainerName();
 
   // Subscribe to request topics
+  mqttClient.subscribe(serviceId + "/clinics/#", (err) => {
+    if (err) return console.error("Failed to subscribe to request topic");
+    console.log(`Subscribed to clinics/#`);
+  });
+
   mqttClient.subscribe(serviceId + "/appointments/#", (err) => {
     if (err) return console.error("Failed to subscribe to request topic");
     console.log(`Subscribed to appoinments/#`);
   });
+
   mqttClient.subscribe(serviceId + "/doctors/#", (err) => {
     if (err) return console.error("Failed to subscribe to request topic");
     console.log(`Subscribed to doctors/#`);
@@ -118,6 +125,34 @@ mqttClient.on("message", async (topic, message) => {
 
   // handle requests
   switch (endpoint) {
+    case "clinics": {
+      switch (action) {
+        case "get": {
+          let res;
+          // TODO project only relevant fields
+          if (payload.clinicId) {
+            res = await clinics
+              .aggregate([
+                { $match: { _id: new ObjectId(payload.clinicId) } },
+                {
+                  $lookup: {
+                    from: "doctors",
+                    localField: "_id",
+                    foreignField: "clinic",
+                    as: "doctors",
+                  },
+                },
+              ])
+              .toArray();
+          } else {
+            res = await clinics.find().toArray();
+          }
+
+          const responseTopic = `${serviceId}/res/${payload.timestamp}`;
+          mqttClient.publish(responseTopic, JSON.stringify(res));
+        }
+      }
+    }
     case "appointments": {
       if (
         !action ||
@@ -129,7 +164,7 @@ mqttClient.on("message", async (topic, message) => {
         break;
       }
 
-	  payload.doctorId = new ObjectId(payload.doctorId);
+      payload.doctorId = new ObjectId(payload.doctorId);
 
       await handleAppointmentsRequest(payload);
       break;
@@ -144,10 +179,10 @@ mqttClient.on("message", async (topic, message) => {
       break;
     }
 
-	case "slots": {
-		handleSlotRequest(payload);
-		break;
-	}
+    case "slots": {
+      handleSlotRequest(payload);
+      break;
+    }
   }
 });
 
@@ -159,16 +194,42 @@ async function handleAppointmentsRequest(payload: any) {
 
   switch (payload.action) {
     case "get":
-      	let doctorSlots = await slots
-        .find({ doctorId: payload.doctorId })
+      const doctorSlots = await slots
+        .find(
+          { doctorId: payload.doctorId },
+          { projection: { _id: 0, doctorId: 0 } },
+        )
         .toArray();
-      console.log(doctorSlots);
-      mqttClient.publish(responseTopic, JSON.stringify(doctorSlots));
-      console.log("Published ", doctorSlots);
+
+      const doctor = await doctors.findOne({ _id: payload.doctorId });
+      const clinic = await clinics.findOne({ _id: doctor?.clinic });
+      if (!doctor || !clinic) {
+        mqttClient.publish(
+          responseTopic,
+          "Could not fetch doctor data for slot",
+        );
+        break;
+      }
+
+      const res = {
+        doctor: {
+          _id: doctor._id,
+          name: doctor.name,
+          clinic: {
+            _id: clinic._id,
+            name: clinic.name,
+          },
+        },
+        slots: doctorSlots,
+      };
+
+      console.log(res);
+      mqttClient.publish(responseTopic, JSON.stringify(res));
+      console.log("Published ", res);
       break;
 
     case "book": // book a slot
-	  payload.startTime = new Date(payload.startTime);
+      payload.startTime = new Date(payload.startTime);
       slot = await slots.findOne({
         doctorId: payload.doctorId,
         startTime: payload.startTime,
@@ -218,7 +279,7 @@ async function handleAppointmentsRequest(payload: any) {
       break;
 
     case "cancel": // cancel a slot
-	payload.startTime = new Date(payload.startTime);
+      payload.startTime = new Date(payload.startTime);
       slot = await slots.findOne({
         doctorId: payload.doctorId,
         startTime: payload.startTime,
@@ -290,9 +351,12 @@ async function handleSlotRequest(payload: any){
 	// if(!doctor)
 	// 	return mqttClient.publish(payload.responseTopic, JSON.stringify({message: "Doctor not found"}));
 
-	// Check if the start time is before the current timme
-	if(payload.body.startDate <= new Date())
-		return mqttClient.publish(responseTopic, JSON.stringify({message: "Invalid time range"}));
+  // Check if the start time is before the current timme
+  if (payload.body.startDate <= new Date())
+    return mqttClient.publish(
+      responseTopic,
+      JSON.stringify({ message: "Invalid time range" }),
+    );
 
 	// Check if the time is between 8 am and 8 pm
 	if(startDate.getHours() < 8 || startDate.getHours() > 20)
