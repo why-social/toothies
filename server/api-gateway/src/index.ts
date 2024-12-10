@@ -1,11 +1,19 @@
+import { createServer } from "http";
+import { Server } from "socket.io";
 import express, { Express, Request, Response, NextFunction } from "express";
 import cors from "cors";
 import mqtt, { IClientOptions, IClientPublishOptions } from "mqtt";
 import { Service } from "./types/Service";
 import { ServicesList } from "./types/ServicesList";
+import { authMiddleware } from "./middleware/auth";
+import { createUserToken } from "./utils/utils";
 
 const app: Express = express();
 const port: number = 3000;
+const httpServer = createServer(app);
+const socket = new Server(httpServer, {
+  cors: { origin: "*" },
+});
 
 const mqttOptions: IClientOptions = {
   username: "service",
@@ -41,6 +49,13 @@ mqttClient.on("connect", () => {
     console.log(`Subscribed to ${heartbeatTopic}`);
   });
 
+  // Subscrive to live calendar updates
+  mqttClient.subscribe("appointments/+", (err) => {
+    if (err) return console.error("Failed to subscribe to heartbeat topic");
+
+    console.log("Subscribed to appointments/+");
+  });
+
   // Handle heartbeat messages, if a service is not in the list, add it
   mqttClient.on("message", (topic, message) => {
     if (topic === heartbeatTopic) {
@@ -62,6 +77,16 @@ mqttClient.on("connect", () => {
       }
     }
   });
+});
+
+// forward live update to corresponding socket namespace
+mqttClient.on("message", (topic, message) => {
+  const match = /^appointments\/(\w+)$/g.exec(topic);
+  if (match && match.length == 2) {
+    console.log(`Live update: [${topic}]: ${message.toString()}`);
+    socket.emit(match[1], message.toString());
+    console.log(`Emitted to socket [${match[1]}]: ${message.toString()}`);
+  }
 });
 
 function mqttPublishWithResponse(
@@ -141,17 +166,39 @@ function mqttPublishWithResponse(
 }
 
 // Clinic enpoints
-
 /**
- *  Get appointment slots of a doctor
+ *  Get all clinics
  *  Request Format:
  *      Endpoint: /clinics
+ */
+app.get("/clinics", (req: Request, res: Response) => {
+  mqttPublishWithResponse(req, res, "clinics/get");
+});
+
+/**
+ *  Get a clinic
+ *  Request Format:
+ *      Endpoint: /clinics/:id
+ */
+app.get("/clinics/:id", (req: Request, res: Response) => {
+  if (!req.params.id) {
+    res.status(400).send("No id");
+  }
+  mqttPublishWithResponse(req, res, "clinics/get", {
+    clinicId: req.params.id,
+  });
+});
+
+/**
+ *  Get all doctors
+ *  Request Format:
+ *      Endpoint: /doctors
  */
 app.get("/doctors", (req: Request, res: Response) => {
   mqttPublishWithResponse(req, res, "doctors/get");
 });
 
-// Doctor endpoints
+// Booking endpoints
 /**
  *  Get appointment slots of a doctor
  *  Request Format:
@@ -193,8 +240,8 @@ app.post("/appointments", (req: Request, res: Response) => {
  *      Endpoint: /appointments
  *      Body: { doctorId: <ObjectId>, startTime: <Date> }
  */
-app.delete("/appointments", (req: Request, res: Response) => {
-  if (!req.body?.doctorId || !req.body?.startTime) {
+app.delete("/appointments", authMiddleware, (req: Request, res: Response) => {
+  if (!req.body?.startTime || !req.body?.doctorId) {
     res.status(400).send("Error: Invalid request");
     console.log(req.body);
     return;
@@ -206,10 +253,79 @@ app.delete("/appointments", (req: Request, res: Response) => {
   });
 });
 
+/**
+ * Create a slot for a doctor
+ * Request Format:
+ * 		Endpoint: /slots
+ *   	Body: { startDate: <Date>, endDate: <Date> }
+ */
+app.post("/slots", authMiddleware, (req: Request, res: Response) => {
+  // Check if the user is authorized
+  if (!req.isAuth || !req.user) {
+    res.status(401).send("Unauthorized");
+    return;
+  }
+
+	// Publish the request to the MQTT broker
+	mqttPublishWithResponse(req, res, "slots/create", {
+		doctorId: req.user,
+		body: req.body,
+	});
+});
+
+/**
+ * Delete a slot for a doctor
+ * Request Format:
+ * 		Endpoint: /slots
+ *  	Body: { startDate: <Date> }
+ */
+app.delete("/slots", authMiddleware, (req: Request, res: Response) => {
+  // Check if the user is authorized
+  if (!req.isAuth || !req.user) {
+    res.status(401).send("Unauthorized");
+    return;
+  }
+
+  // Publish the request to the MQTT broker
+  mqttPublishWithResponse(req, res, "slots/delete", {
+    doctorId: req.user,
+    body: req.body,
+  });
+});
+
+/**
+ * Edit a slot for a doctor
+ * Request Format:
+ * 		Endpoint: /slots
+ * 		Body: { oldStartDate: <Date>, newStartDate: <Date>, newEndDate: <Date> }
+ */
+app.patch("/slots", authMiddleware, (req: Request, res: Response) => {
+	// Check if the user is authorized
+	if(!req.isAuth || !req.user) {
+		res.status(401).send("Unauthorized");
+		return;
+	}
+
+	// Publish the request to the MQTT broker
+	mqttPublishWithResponse(req, res, "slots/edit", {
+		doctorId: req.user,
+		body: req.body,
+	});
+});
+
+app.post("/generateToken", (req: Request, res: Response) => {
+  if (!req.body?.id) {
+    res.status(400).send("Error: Invalid request");
+    return;
+  }
+  const token = createUserToken(req.body.id);
+  res.status(200).send(token);
+});
+
 app.use("/", (req: Request, res: Response, next: NextFunction) => {
   res.send("API Gateway");
 });
 
-app.listen(port, () => {
+httpServer.listen(port, () => {
   console.log(`API Gateway listening at http://localhost:${port}`);
 });

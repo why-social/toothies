@@ -1,4 +1,4 @@
-<div class="container">
+@if (clinic) {
   <div class="details">
     <h2>{{ clinic.name }}</h2>
 
@@ -14,11 +14,22 @@
     </div>
   </div>
 
-  <h2>Doctors</h2>
+  @if (clinic.doctors && clinic.doctors.length > 0) {
+    <h2>Doctors</h2>
 
-  <div class="doctors">
-    @for (doctor of doctors; track $index) {
-      <doctor [doctor]="doctor" />
-    }
+    <div class="doctors">
+      @for (doctor of clinic.doctors; track $index) {
+        <doctor [doctor]="doctor" />
+      }
+    </div>
+  } @else {
+    <div class="not-found">This clinic has no doctors.</div>
+  }
+} @else if (clinic === null) {
+  <div class="not-found">
+    Clinic not found.<br />
+    <button mat-button (click)="router.navigate(['/'])">Go home</button>
   </div>
-</div>
+} @else {
+  <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+}

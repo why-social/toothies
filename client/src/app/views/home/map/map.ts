@@ -50,7 +50,7 @@ export class ClinicMap implements AfterViewInit {
     });
     this.markerClusterGroup.addTo(this.map);
 
-    this.updateMapMarkers();
+    //this.updateMapMarkers();
 
     let currentRect!: DOMRectReadOnly;
     new ResizeObserver((observerEntry: Array<ResizeObserverEntry>) => {

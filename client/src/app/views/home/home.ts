@@ -15,70 +15,51 @@ import { Doctor } from '../../components/doctor/doctor.interface';
 export class Home {
   private http = inject(HttpClient);
 
-  clinics: Array<Clinic> = [
-    {
-      _id: '1',
-      name: 'The clinic',
-      location: {
-        latitude: 57.7089,
-        longitude: 11.9746,
-        city: 'Gothenburg',
-        address: 'Plejadgatan 22',
-      }
-    },
-    {
-      _id: '2',
-      name: 'The clinic',
-      location: {
-        latitude: 57.6089,
-        longitude: 11.846,
-        city: 'Gothenburg',
-        address: 'Plejadgatan 20',
-      }
-    },
-    {
-      _id: '3',
-      name: 'The clinic',
-      location: {
-        latitude: 57.7189,
-        longitude: 12,
-        city: 'Gothenburg',
-        address: 'Plejadgatan 24',
-      }
-    },
-  ];
-
+  clinics!: Array<Clinic>;
   doctors!: Array<Doctor>;
 
   constructor() {
     //get clinics
     this.http.get<Array<any>>(`http://localhost:3000/clinics`).subscribe({
       next: (data) => {
-        this.clinics = data.map(
-          (it: Clinic) =>
-            ({
-              name: it.name,
-              _id: it._id,
-              location: it.location,
-            }) as Clinic,
-        );
+        this.clinics = data
+          .filter(
+            (el) =>
+              el.name &&
+              el._id &&
+              el.location &&
+              el.location.latitude &&
+              el.location.longitude &&
+              el.location.city &&
+              el.location.address,
+          )
+          .map(
+            (it) =>
+              ({
+                name: it.name,
+                _id: it._id,
+                location: it.location,
+              }) as Clinic,
+          );
       },
       error: (error) => {
-        console.error('Error fetching doctors: ', error);
+        console.error('Error fetching clinics: ', error);
       },
     });
 
     // get doctors
     this.http.get<Array<any>>(`http://localhost:3000/doctors`).subscribe({
       next: (data) => {
-        this.doctors = data.map(
-          (it: Doctor) =>
-            ({
-              name: it.name,
-              _id: it._id,
-              type: it.type,
-            }) as Doctor,
-        );
+        this.doctors = data
+          .filter((el) => el.name && el._id && el.type)
+          .map(
+            (it) =>
+              ({
+                name: it.name,
+                _id: it._id,
+                type: it.type,
+              }) as Doctor,
+          );
       },
       error: (error) => {
         console.error('Error fetching doctors: ', error);
