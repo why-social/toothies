@@ -19,5 +19,8 @@
 		"rebuildMqtt": "npm run stopMqtt && npm run buildMqtt"
 	},
 	"author": "",
-	"license": "ISC"
+	"license": "ISC",
+	"dependencies": {
+		"socket.io": "^4.8.1"
+	}
 }
