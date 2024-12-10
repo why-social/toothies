@@ -2,95 +2,114 @@ import {
   Component,
   Input,
   OnInit,
-  AfterViewInit,
+  AfterViewChecked,
   ViewChild,
   ElementRef,
   inject,
 } from '@angular/core';
-import { Doctor } from '../../types/doctor';
-import { Clinic } from '../../types/clinic';
+import { ActivatedRoute } from '@angular/router';
+import { PopulatedClinic } from '../../types/clinic';
 import { HttpClient } from '@angular/common/http';
 import { DoctorComponent } from '../../components/doctor/doctor';
 import { LeafletUtil } from '../../types/leaflet';
 import { MatIcon } from '@angular/material/icon';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatButtonModule } from '@angular/material/button';
+import { Router } from '@angular/router';
 import * as Leaflet from 'leaflet';
 
 @Component({
   templateUrl: './clinic.html',
   styleUrl: './clinic.css',
-  imports: [DoctorComponent, MatIcon],
+  imports: [DoctorComponent, MatIcon, MatProgressBarModule, MatButtonModule],
 })
-export class ClinicView implements AfterViewInit, OnInit {
+export class ClinicView implements AfterViewChecked, OnInit {
+  private route = inject(ActivatedRoute);
   private http = inject(HttpClient);
-  private map: any;
+  protected router = inject(Router);
 
   @ViewChild('map') mapElement!: ElementRef;
-
-  @Input() clinic: Clinic = {
-    _id: '1',
-    name: 'The clinic',
-    location: {
-      latitude: 57.7089,
-      longitude: 11.9746,
-      city: 'Gothenburg',
-      address: 'Plejadgatan 22',
-      postCode: 41757,
-    },
-    doctors: ['1', '2'],
-  };
-
-  doctors!: Array<Doctor>;
-
-  constructor() {
-    //TODO: get clinic
-
-    // get doctors in clinic
-    this.http.get<Array<any>>(`http://localhost:3000/doctors`).subscribe({
-      next: (data) => {
-        this.doctors = data.map(
-          (it: Doctor) =>
-            ({
-              name: it.name,
-              _id: it._id,
-              type: it.type,
-            }) as Doctor,
-        );
-      },
-      error: (error) => {
-        console.error('Error fetching doctors: ', error);
-      },
-    });
-  }
+  @Input() clinic!: PopulatedClinic | null;
+  private marker!: Leaflet.Marker;
+  private map!: Leaflet.Map;
 
   ngOnInit(): void {
-    this.map = Leaflet.map('map', {
-      center: [57.7089, 11.9746], // Gothenburg
-      zoom: 9,
+    this.route.paramMap.subscribe((params) => {
+      const identifier = params.get('id');
+
+      if (!identifier) {
+        return;
+      }
+
+      this.http
+        .get<Array<any>>(`http://localhost:3000/clinics/${identifier}`)
+        .subscribe({
+          next: (data: any) => {
+            data = data[0];
+
+            if (
+              data &&
+              data.name &&
+              data._id &&
+              data.location &&
+              data.location.latitude &&
+              data.location.longitude &&
+              data.location.city &&
+              data.location.address &&
+              data.doctors
+            ) {
+              data.doctors = data.doctors.filter(
+                (el: any) => el.name && el._id && el.type,
+              );
+
+              this.clinic = {
+                name: data.name,
+                _id: data._id,
+                location: data.location,
+                doctors: data.doctors,
+              } as PopulatedClinic;
+
+              if (this.marker && this.map) {
+                this.marker.removeFrom(this.map);
+              }
+
+              this.marker = Leaflet.marker(
+                [this.clinic.location.latitude, this.clinic.location.longitude],
+                { icon: LeafletUtil.marker },
+              );
+
+              if (this.map) {
+                this.marker.addTo(this.map);
+              }
+            } else {
+              this.clinic = null;
+            }
+          },
+          error: (error) => {
+            console.error('Error fetching clinic: ', error);
+          },
+        });
     });
-
-    Leaflet.tileLayer(
-      'http://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
-      {
-        maxZoom: 18,
-        minZoom: 9,
-      },
-    ).addTo(this.map);
-
-    Leaflet.marker(
-      [this.clinic.location.latitude, this.clinic.location.longitude],
-      { icon: LeafletUtil.marker },
-    ).addTo(this.map);
   }
 
-  ngAfterViewInit(): void {
-    let currentRect!: DOMRectReadOnly;
+  ngAfterViewChecked(): void {
+    if (this.mapElement && !this.map) {
+      this.map = Leaflet.map('map', {
+        center: [57.7089, 11.9746], // Gothenburg
+        zoom: 9,
+      });
 
-    new ResizeObserver((observerEntry: Array<ResizeObserverEntry>) => {
-      const rect = observerEntry[0].contentRect;
+      Leaflet.tileLayer(
+        'http://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
+        {
+          maxZoom: 18,
+          minZoom: 9,
+        },
+      ).addTo(this.map);
 
-      if (rect != currentRect) {
-        this.map.invalidateSize();
+      if (this.marker) {
+        this.marker.addTo(this.map);
       }
-    }).observe(this.mapElement.nativeElement);
+    }
   }
 }

@@ -12,5 +12,4 @@ export interface Clinic {
   name: string;
   _id: string;
   location: Location;
-  doctors: Array<string>; // doctor identifiers
 }
