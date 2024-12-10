@@ -119,4 +119,12 @@ export class BrokerConnection {
       console.warn("Client tried to unsubscribe before acknowledgement.");
     }
   }
+
+  public publish(topic: string, message: string) {
+    if (this.ready) {
+      this.mqttClient.publish(topic, message);
+    } else {
+      console.warn("Client tried to publish before acknowledgement.");
+    }
+  }
 }
