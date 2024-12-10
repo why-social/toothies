@@ -9,25 +9,25 @@ import {
 import { MatIconModule } from "@angular/material/icon";
 import { MatButtonModule } from "@angular/material/button";
 import { MatToolbarModule } from "@angular/material/toolbar";
-import { Slot, Slots } from "../../types/slots";
+import { CalendarSlot, CalendarSlots } from "./calendar.slots.interface";
 
 @Component({
   selector: "calendar",
-  templateUrl: "./calendar.html",
-  styleUrl: "./calendar.css",
+  templateUrl: "./calendar.component.html",
+  styleUrl: "./calendar.component.css",
   imports: [MatToolbarModule, MatButtonModule, MatIconModule],
 })
-export class Calendar implements OnInit {
+export class CalendarComponent implements OnInit {
   private static readonly DAYS_PER_WEEK: number = 5;
 
-  @Output() openEvent = new EventEmitter<Slot>();
-  @Input() slots!: Array<Slot>;
+  @Output() openEvent = new EventEmitter<CalendarSlot>();
+  @Input() slots!: Array<CalendarSlot>;
 
   private readonly startDate: Date;
   readonly today: Date;
 
   hours: Array<number>;
-  activeSlots: Array<Slots>;
+  activeSlots: Array<CalendarSlots>;
   month!: string;
   week!: string;
   year!: number;
@@ -35,7 +35,7 @@ export class Calendar implements OnInit {
   constructor() {
     this.today = new Date();
     this.hours = Array.from({ length: 12 }, (_, a) => a + 8);
-    this.activeSlots = new Array(Calendar.DAYS_PER_WEEK);
+    this.activeSlots = new Array(CalendarComponent.DAYS_PER_WEEK);
 
     let day = this.today.getDay();
     let diff = this.today.getDate() - day + (day == 0 ? -6 : 1); // americans...
@@ -60,7 +60,7 @@ export class Calendar implements OnInit {
   }
 
   private updateCalendarDataFor(startDate: Date) {
-    for (let index = 0; index < Calendar.DAYS_PER_WEEK; index++) {
+    for (let index = 0; index < CalendarComponent.DAYS_PER_WEEK; index++) {
       const date: Date = new Date(startDate);
 
       date.setDate(startDate.getDate() + index);
@@ -76,7 +76,7 @@ export class Calendar implements OnInit {
       if (
         !(
           slot.endTime < this.activeSlots[0].date ||
-          slot.startTime > this.activeSlots[Calendar.DAYS_PER_WEEK - 1].date
+          slot.startTime > this.activeSlots[CalendarComponent.DAYS_PER_WEEK - 1].date
         )
       ) {
         for (const slots of this.activeSlots)
@@ -90,7 +90,7 @@ export class Calendar implements OnInit {
       month: "long",
     });
     let endMonth = this.activeSlots[
-      Calendar.DAYS_PER_WEEK - 1
+      CalendarComponent.DAYS_PER_WEEK - 1
     ].date.toLocaleString("default", { month: "long" });
 
     if (startMonth == endMonth) {
@@ -105,7 +105,7 @@ export class Calendar implements OnInit {
 
       const startWeek: string = this.getWeekDay(this.activeSlots[0].date);
       const endWeek: string = this.getWeekDay(
-        this.activeSlots[Calendar.DAYS_PER_WEEK - 1].date,
+        this.activeSlots[CalendarComponent.DAYS_PER_WEEK - 1].date,
       );
 
       if (startWeek == endWeek) {
@@ -114,7 +114,7 @@ export class Calendar implements OnInit {
       } else {
         this.week = startWeek + " - " + endWeek;
         this.year =
-          this.activeSlots[Calendar.DAYS_PER_WEEK - 1].date.getFullYear();
+          this.activeSlots[CalendarComponent.DAYS_PER_WEEK - 1].date.getFullYear();
       }
     }
   }
@@ -138,7 +138,7 @@ export class Calendar implements OnInit {
     );
   }
 
-  public calculateTop(slot: Slot) {
+  public calculateTop(slot: CalendarSlot) {
     const date: Date = new Date(slot.startTime);
 
     date.setHours(8);
@@ -149,7 +149,7 @@ export class Calendar implements OnInit {
     return this.normalizedSince(date, slot.startTime) + "%";
   }
 
-  public calculateBottom(slot: Slot) {
+  public calculateBottom(slot: CalendarSlot) {
     const date: Date = new Date(slot.startTime);
 
     date.setHours(20);

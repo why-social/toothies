@@ -1,5 +1,5 @@
-import { Location } from './location';
-import { Doctor } from './doctor';
+import { Location } from '../../types/location.interface';
+import { Doctor } from '../doctor/doctor.interface';
 
 export interface PopulatedClinic {
   name: string;

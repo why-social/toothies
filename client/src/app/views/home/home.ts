@@ -3,13 +3,14 @@ import { MatTabGroup, MatTab } from '@angular/material/tabs';
 import { HttpClient } from '@angular/common/http';
 import { Doctors } from './doctors/doctors';
 import { Clinics } from './clinics/clinics';
-import { Clinic } from '../../types/clinic';
-import { Doctor } from '../../types/doctor';
+import { ClinicMap } from './map/map';
+import { Clinic } from '../../components/clinic/clinic.interface';
+import { Doctor } from '../../components/doctor/doctor.interface';
 
 @Component({
   templateUrl: './home.html',
   styleUrl: './home.css',
-  imports: [Clinics, Doctors, MatTabGroup, MatTab],
+  imports: [Clinics, Doctors, MatTabGroup, MatTab, ClinicMap],
 })
 export class Home {
   private http = inject(HttpClient);

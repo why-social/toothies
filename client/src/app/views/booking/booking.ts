@@ -1,8 +1,8 @@
 import { Component, inject, Injectable } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
-import { Calendar } from '../../components/calendar/calendar';
-import { Slot } from '../../types/slots';
-import { Dialog } from './dialog/dialog';
+import { CalendarComponent } from '../../components/calendar/calendar.component';
+import { CalendarSlot } from '../../components/calendar/calendar.slots.interface';
+import { BookingDialogComponent } from '../../components/booking/dialog/booking.dialog';
 import { HttpClient } from '@angular/common/http';
 import { ActivatedRoute } from '@angular/router';
 import { Socket } from 'ngx-socket-io';
@@ -11,7 +11,7 @@ import { Socket } from 'ngx-socket-io';
 @Component({
   templateUrl: './booking.html',
   styleUrl: './booking.css',
-  imports: [Calendar],
+  imports: [CalendarComponent],
 })
 export class Booking {
   readonly dialog = inject(MatDialog);
@@ -19,12 +19,12 @@ export class Booking {
   private route = inject(ActivatedRoute);
   private socket = inject(Socket);
 
-  protected slots: Array<Slot> = [];
+  protected slots: Array<CalendarSlot> = [];
 
   private doctorId: string | null = null;
   private doctorName: string | null = null;
   private clinicName: string | null = null;
-  private openedDialog: Slot | null = null;
+  private openedDialog: CalendarSlot | null = null;
 
   public ngOnInit() {
     this.route.paramMap.subscribe((params) => {
@@ -63,7 +63,7 @@ export class Booking {
           this.doctorName = data.doctor.name;
           this.clinicName = data.doctor.clinic.name;
 
-          this.slots = data.slots.map((it: Slot) => ({
+          this.slots = data.slots.map((it: CalendarSlot) => ({
             startTime: new Date(it.startTime),
             endTime: new Date(it.endTime),
             isBooked: it.isBooked,
@@ -75,7 +75,7 @@ export class Booking {
       });
   }
 
-  public openDialog(slot: Slot) {
+  public openDialog(slot: CalendarSlot) {
     this.openedDialog = slot;
 
     const timeString = `${slot.startTime.toLocaleTimeString([], {
@@ -89,7 +89,7 @@ export class Booking {
     })}`;
 
     this.dialog
-      .open(Dialog, {
+      .open(BookingDialogComponent, {
         width: '250px',
         data: {
           title: slot.isBooked ? 'Cancel Booking' : 'Confirm Booking',

@@ -8,10 +8,10 @@ import {
   inject,
 } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
-import { PopulatedClinic } from '../../types/clinic';
+import { PopulatedClinic } from '../../components/clinic/clinic.interface';
 import { HttpClient } from '@angular/common/http';
-import { DoctorComponent } from '../../components/doctor/doctor';
-import { LeafletUtil } from '../../types/leaflet';
+import { DoctorComponent } from '../../components/doctor/doctor.component';
+import { LeafletUtil } from '../../types/leaflet.interface';
 import { MatIcon } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatButtonModule } from '@angular/material/button';
@@ -80,6 +80,7 @@ export class ClinicView implements AfterViewChecked, OnInit {
 
               if (this.map) {
                 this.marker.addTo(this.map);
+                this.map.panTo(this.marker.getLatLng());
               }
             } else {
               this.clinic = null;
@@ -94,9 +95,14 @@ export class ClinicView implements AfterViewChecked, OnInit {
 
   ngAfterViewChecked(): void {
     if (this.mapElement && !this.map) {
-      this.map = Leaflet.map('map', {
-        center: [57.7089, 11.9746], // Gothenburg
-        zoom: 9,
+      const center: Leaflet.LatLngExpression = [57.7089, 11.9746]; // Gothenburg
+      this.map = Leaflet.map(this.mapElement.nativeElement, {
+        maxBounds: Leaflet.latLngBounds(
+          Leaflet.latLng(center[0] - 0.8, center[1] - 1),
+          Leaflet.latLng(center[0] + 1.5, center[1] + 3),
+        ),
+        center: center,
+        zoom: 15,
       });
 
       Leaflet.tileLayer(
@@ -109,6 +115,7 @@ export class ClinicView implements AfterViewChecked, OnInit {
 
       if (this.marker) {
         this.marker.addTo(this.map);
+        this.map.panTo(this.marker.getLatLng());
       }
     }
   }

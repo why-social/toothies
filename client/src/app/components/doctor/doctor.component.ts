@@ -3,12 +3,12 @@ import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIcon } from '@angular/material/icon';
 import { Router } from '@angular/router';
-import { Doctor } from '../../types/doctor';
+import { Doctor } from './doctor.interface';
 
 @Component({
   selector: 'doctor',
-  templateUrl: './doctor.html',
-  styleUrl: './doctor.css',
+  templateUrl: './doctor.component.html',
+  styleUrl: './doctor.component.css',
   imports: [MatCardModule, MatButtonModule, MatIcon],
 })
 export class DoctorComponent {

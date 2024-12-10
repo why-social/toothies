@@ -1,4 +1,4 @@
-import { Clinic } from './clinic';
+import { Clinic } from '../clinic/clinic.interface';
 
 export interface PopulatedDoctor {
   name: string;
