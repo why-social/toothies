@@ -123,8 +123,29 @@ export class BrokerConnection {
   public publish(topic: string, message: string) {
     if (this.ready) {
       this.mqttClient.publish(topic, message);
+      console.log(`Published [${topic}]: ${message}`);
     } else {
       console.warn("Client tried to publish before acknowledgement.");
     }
+  }
+
+  public publishResponse(reqId: string, data: object) {
+    const message = JSON.stringify({
+      reqId,
+      timestamp: Date.now(),
+      data,
+    });
+    this.publish(`res/${reqId}`, message);
+  }
+
+  public publishError(reqId: string, message: string) {
+    const res = JSON.stringify({
+      reqId,
+      timestamp: Date.now(),
+      error: {
+        message: message,
+      },
+    });
+    this.publish(`res/${reqId}`, res);
   }
 }

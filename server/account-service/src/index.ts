@@ -1,15 +1,39 @@
 import { BrokerConnection } from "./modules/broker/brokerConnection";
 import { MongoClient, ObjectId } from "mongodb";
 import dotenv from "dotenv";
+import { sign, verify, PrivateKey } from "jsonwebtoken";
+import { User } from "./types";
 
 dotenv.config();
-
 if (!process.env.ATLAS_CONN_STR) {
   throw new Error("ATLAS_CONN_STR is not defined");
 }
+if (!process.env.BROKER_ADDR) {
+  throw new Error("BROKER_ADDR is not defined");
+}
+if (!process.env.MQTT_USERNAME) {
+  throw new Error("MQTT_USERNAME is not defined");
+}
+if (!process.env.MQTT_PASSWORD) {
+  throw new Error("MQTT_PASSWORD is not defined");
+}
+if (!process.env.JWT_KEY) {
+  throw new Error("JWT_KEY is not defined");
+}
+const jwtKey: PrivateKey = process.env.JWT_KEY;
+
+function createUserToken(user: User) {
+  return sign(
+    {
+      pn: user.personnummer,
+      name: user.name,
+    },
+    jwtKey,
+    { expiresIn: "7d" },
+  );
+}
 
 const atlasClient = new MongoClient(process.env.ATLAS_CONN_STR);
-
 const db = atlasClient.db("primary");
 const users = db.collection("users");
 /*
@@ -22,6 +46,7 @@ const users = db.collection("users");
  * - Length between 3 and 40
  */
 const emailRegex = /^(?=.{3,40}$)[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 /*
  * Personnummer regex
  * - 10 or 12 digits, '-' optional
@@ -32,59 +57,117 @@ const emailRegex = /^(?=.{3,40}$)[^\s@]+@[^\s@]+\.[^\s@]+$/;
  */
 const pnRegex = /^(?:19|20)?(\d{2})(\d{2})(\d{2})?-?(\d{4})$/;
 
+// ----------------- MQTT CALLBACKS -----------------
+// Topic: accounts/login
+// Message format: {reqId: <string>, timestamp: <number>, data: {username: <string>, passwordHash: <string>}}
+const authenticateUser = async (message: Buffer) => {
+  let data, reqId;
+  try {
+    const payload = JSON.parse(message.toString());
+    data = payload.data;
+    reqId = payload.reqId;
+  } catch (e) {
+    if (e instanceof Error) {
+      console.error(e.message);
+    } else {
+      console.error(e);
+    }
+    broker.publishError(reqId, "Malformed request");
+    return;
+  }
+
+  if (!data || !reqId) {
+    broker.publishError(reqId, "Malformed request");
+    console.error(`Malformed request: ${message}`);
+    return;
+  }
+  if (!data.personnummer || !data.passwordHash) {
+    broker.publishError(reqId, "Missing fields");
+    console.error(`Missing fields in request: ${message}`);
+    return;
+  }
+
+  const user = await users.findOne({ personnummer: data.personnummer });
+  if (!user) {
+    broker.publishError(reqId, "User does not exist");
+    console.error(`User does not exist: \n${message}`);
+    return;
+  }
+
+  if (user.passwordHash == data.passwordHash) {
+    const token = createUserToken(user as User);
+    broker.publishResponse(reqId, { token });
+  } else {
+    broker.publishError(reqId, "Incorrect password");
+  }
+};
+
+// Create/register a user
+// Topic: accounts/register
+// Message format:
+// { reqId: <number>, timestamp: <number>,
+//   data: { personnummer: <string>, passwordHash: <string>, name: <string>, email: <string>}
+// }
+const createUser = async (message: Buffer) => {
+  let data, reqId;
+  try {
+    const payload = JSON.parse(message.toString());
+    data = payload.data;
+    reqId = payload.reqId;
+  } catch (e) {
+    if (e instanceof Error) {
+      console.error(e.message);
+    } else {
+      console.error(e);
+    }
+    broker.publishError(reqId, "Malformed request");
+    return;
+  }
+
+  if (!data || !reqId) {
+    broker.publishError(reqId, "Malformed request");
+    console.error(`Malformed request: ${message}`);
+    return;
+  }
+  if (!data.personnummer || !data.passwordHash || !data.name || !data.email) {
+    broker.publishError(reqId, "Missing fields");
+    console.error(`Missing fields in request: ${message}`);
+    return;
+  }
+
+  if (!pnRegex.test(data.personnummer)) {
+    broker.publishError(reqId, "Invalid personnummer");
+    console.error(`Invalid personnummer: ${data.personnummer}`);
+    return;
+  }
+
+  if (!emailRegex.test(data.email)) {
+    broker.publishError(reqId, "Invalid email");
+    console.error(`Invalid email: ${data.email}`);
+    return;
+  }
+
+  const userExists = await users.findOne({
+    personnummer: data.personnummer,
+  });
+
+  if (!userExists) {
+    users.insertOne(data);
+    broker.publishResponse(reqId, data);
+    console.log(`Created user:\n${JSON.stringify(data)}`);
+  } else {
+    broker.publishError(reqId, "Invalid personnummer");
+    console.error(`User already exists: \n${message}`);
+  }
+};
+
+// -------------------- DEFINE BROKER --------------------
 const broker: BrokerConnection = new BrokerConnection("accounts", {
   onFailed() {
     process.exit(0);
   },
   onConnected() {
-    // Topic: accounts/login
-    // Message format: {username: <string>, password_hash: <string>}
-    broker.subscribe("login", (message) => {
-      console.log(message.toString());
-    });
-
-    // Topic: accounts/register
-    // Message format: {reqId: <number>, timestamp: <number>, data: {personnummer: <string>, password_hash: <string>, name: <string>, email: <string>}}
-    broker.subscribe("register", async (message) => {
-      const payload = JSON.parse(message.toString());
-      const data = payload.data;
-      const reqId = payload.reqId;
-
-      if (
-        !data.personnummer ||
-        !data.password_hash ||
-        !data.name ||
-        !data.email
-      ) {
-        broker.publish(`res/${reqId}`, '{error: "Missing fields"');
-        console.error(`Missing fields in request: ${message}`);
-        return;
-      }
-
-      if (!pnRegex.test(data.personnummer)) {
-        broker.publish(`res/${reqId}`, '{error: "Invalid personnummer"');
-        console.error(`Invalid personnummer: ${data.personnummer}`);
-        return;
-      }
-
-      if (!emailRegex.test(data.email)) {
-        broker.publish(`res/${reqId}`, '{error: "Invalid email"');
-        console.error(`Invalid email: ${data.email}`);
-        return;
-      }
-
-      const userExists = await users.findOne({
-        personnummer: data.personnummer,
-      });
-
-      if (!userExists) {
-        users.insertOne(data);
-        broker.publish(`res/${reqId}`, JSON.stringify(data));
-        console.log(`Created user: \n${JSON.stringify(data)}`);
-      } else {
-        broker.publish(`res/${reqId}`, '{error: "User already exists"');
-        console.error(`User already exists: \n${message}`);
-      }
-    });
+    broker.subscribe("login", authenticateUser);
+    broker.subscribe("register", createUser);
   },
 });
