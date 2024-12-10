@@ -1,13 +1,15 @@
 import {
   Component,
   Input,
+  inject,
   AfterViewInit,
+  OnChanges,
   ViewChild,
   ElementRef,
+  SimpleChanges,
 } from '@angular/core';
 import { Clinic } from '../../../components/clinic/clinic.interface';
 import { LeafletUtil } from '../../../types/leaflet.interface';
-import { Router } from '@angular/router';
 import { LeafletMarkerClusterModule } from '@bluehalo/ngx-leaflet-markercluster';
 import { PopUpService } from '../../../components/map/popup/map.popup.service';
 import * as Leaflet from 'leaflet';
@@ -18,22 +20,27 @@ import * as Leaflet from 'leaflet';
   styleUrl: './map.css',
   imports: [LeafletMarkerClusterModule],
 })
-export class ClinicMap implements AfterViewInit {
-  private map!: Leaflet.Map;
+export class ClinicMap implements AfterViewInit, OnChanges {
+  private popupService = inject(PopUpService);
+
   private markerClusterGroup!: Leaflet.MarkerClusterGroup;
+  @ViewChild('map') private mapElement!: ElementRef;
+  @Input() public clinics!: Array<Clinic>;
+  private markers: Map<string, Leaflet.Marker>;
+  private map!: Leaflet.Map;
 
-  @ViewChild('map') mapElement!: ElementRef;
-
-  @Input() clinics!: Array<Clinic>;
-
-  constructor(
-    private router: Router,
-    private popupService: PopUpService,
-  ) {}
+  constructor() {
+    this.markers = new Map();
+  }
 
   ngAfterViewInit(): void {
+    const center: Leaflet.LatLngExpression = [57.7089, 11.9746]; // Gothenburg
     this.map = Leaflet.map(this.mapElement.nativeElement, {
-      center: [57.7089, 11.9746], // Gothenburg
+      maxBounds: Leaflet.latLngBounds(
+        Leaflet.latLng(center[0] - 0.8, center[1] - 1),
+        Leaflet.latLng(center[0] + 1.5, center[1] + 3),
+      ),
+      center: center,
       zoom: 9,
     });
 
@@ -50,7 +57,7 @@ export class ClinicMap implements AfterViewInit {
     });
     this.markerClusterGroup.addTo(this.map);
 
-    //this.updateMapMarkers();
+    this.updateMapMarkers();
 
     let currentRect!: DOMRectReadOnly;
     new ResizeObserver((observerEntry: Array<ResizeObserverEntry>) => {
@@ -62,25 +69,37 @@ export class ClinicMap implements AfterViewInit {
     }).observe(this.mapElement.nativeElement);
   }
 
-  private updateMapMarkers(): void {
-    if (this.markerClusterGroup) {
-      for (let clinic of this.clinics) {
-        const marker = Leaflet.marker(
-          [clinic.location.latitude, clinic.location.longitude],
-          {
-            icon: LeafletUtil.marker,
-          },
-        );
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes['clinics']) {
+      this.updateMapMarkers();
+    }
+  }
 
-        marker.bindPopup(
-          this.popupService.returnPopUpHTML({
-            title: clinic.name,
-            message: clinic.location.address,
-            label: 'More info',
-            route: `clinic/${clinic._id}`,
-          }),
-        );
-        marker.addTo(this.markerClusterGroup);
+  private updateMapMarkers(): void {
+    if (this.markerClusterGroup && this.clinics) {
+      for (let clinic of this.clinics) {
+        if (this.markers.has(clinic._id)) {
+          continue;
+        } else {
+          const marker = Leaflet.marker(
+            [clinic.location.latitude, clinic.location.longitude],
+            {
+              icon: LeafletUtil.marker,
+            },
+          );
+
+          marker.bindPopup(
+            this.popupService.returnPopUpHTML({
+              title: clinic.name,
+              message: clinic.location.address,
+              label: 'More info',
+              route: `clinic/${clinic._id}`,
+            }),
+          );
+          marker.addTo(this.markerClusterGroup);
+
+          this.markers.set(clinic._id, marker);
+        }
       }
     }
   }
