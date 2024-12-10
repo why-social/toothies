@@ -5,7 +5,7 @@ import axios from "axios";
 const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
 const timeRegex = /^\d{2}:\d{2}$/;
 
-const cancelAppointment = new Command("delete")
+const cancelAppointment = new Command("cancel")
 .description(`Cancel an appointment with specified date and time`)
 .requiredOption("-d, --date <date>", `Date of the appointment in the format YYYY-MM-DD ${chalk.dim("(required)")}`)
 .requiredOption("-s, --startTime <time>", `Start time of the appointment in the format HH:MM ${chalk.dim("(required)")}`)
@@ -28,8 +28,15 @@ const cancelAppointment = new Command("delete")
 
 	// Make an api call to delete an appointment and handle the response
 	try {
-		const res = await axios.delete(`${process.env.API_URL}/appointments`,
-		{ data: { startTime: startDate }, headers: 
+		// Get the doctorId from the token
+		let doctorId = null;
+		doctorId = JSON.parse(atob(process.env.ACCESS_TOKEN.split('.')[1])).userId;
+
+		// Check if token is valid
+		if(!doctorId) return console.error("Unauthorized");
+		
+		const res = await axios.delete(`${process.env.API_URL}/appointments?`,
+		{ data: { startTime: startDate, doctorId: doctorId }, headers: 
 			{ Authorization: `Bearer ${process.env.ACCESS_TOKEN}` }
 		});
 		if(res.data?.message) console.log(res.data.message);

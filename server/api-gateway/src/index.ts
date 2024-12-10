@@ -219,20 +219,10 @@ app.post("/appointments", (req: Request, res: Response) => {
  *      Body: { doctorId: <ObjectId>, startTime: <Date> }
  */
 app.delete("/appointments", authMiddleware, (req: Request, res: Response) => {
-  if (!req.body?.startTime) {
+  if (!req.body?.startTime || !req.body?.doctorId) {
     res.status(400).send("Error: Invalid request");
     console.log(req.body);
     return;
-  }
-
-  // TODO change the endpoint to use the doctorId from the token only
-
-  if(req.isAuth && req.user) { // If the user is authorized, doctorId is the user token
-	req.body.doctorId = req.user;
-  } else if(!req.body?.doctorId) { // If the user is not authorized, doctorId must be provided
-	res.status(401).send("Error: Invalid request");
-	console.log(req.body);
-	return;
   }
 
   mqttPublishWithResponse(req, res, "appointments/cancel", {
@@ -255,7 +245,7 @@ app.post("/slots", authMiddleware, (req: Request, res: Response) => {
 	}
 
 	// Publish the request to the MQTT broker
-	mqttPublishWithResponse(req, res, "slots/post", {
+	mqttPublishWithResponse(req, res, "slots/create", {
 		doctorId: req.user,
 		body: req.body,
 	});
@@ -276,6 +266,26 @@ app.delete("/slots", authMiddleware, (req: Request, res: Response) => {
 
 	// Publish the request to the MQTT broker
 	mqttPublishWithResponse(req, res, "slots/delete", {
+		doctorId: req.user,
+		body: req.body,
+	});
+});
+
+/**
+ * Edit a slot for a doctor
+ * Request Format:
+ * 		Endpoint: /slots
+ * 		Body: { oldStartDate: <Date>, newStartDate: <Date>, newEndDate: <Date> }
+ */
+app.patch("/slots", authMiddleware, (req: Request, res: Response) => {
+	// Check if the user is authorized
+	if(!req.isAuth || !req.user) {
+		res.status(401).send("Unauthorized");
+		return;
+	}
+
+	// Publish the request to the MQTT broker
+	mqttPublishWithResponse(req, res, "slots/edit", {
 		doctorId: req.user,
 		body: req.body,
 	});
