@@ -209,6 +209,7 @@ async function handleAppointmentsRequest(payload: any) {
 
       slot.isBooked = true;
       await slots.updateOne({ _id: slot._id }, { $set: { isBooked: true } });
+
       mqttClient.publish(
         responseTopic,
         JSON.stringify({
@@ -216,6 +217,8 @@ async function handleAppointmentsRequest(payload: any) {
           message: "Slot successfully booked",
         }),
       );
+
+      // send live update to open calendars
       mqttClient.publish(
         `appointments/${payload.doctorId}`,
         JSON.stringify(slot),
