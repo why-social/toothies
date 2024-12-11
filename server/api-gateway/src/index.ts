@@ -210,16 +210,22 @@ app.get("/appointments", (req: Request, res: Response) => {
  *  Book a slot
  *  Request Format:
  *      Endpoint: /appointments
- *      Body: { doctorId: <ObjectId>, startTime: <Date> }
+ *      Body: { userId: ObjectId, doctorId: <ObjectId>, startTime: <Date> }
  */
-app.post("/appointments", (req: Request, res: Response) => {
+app.post("/appointments", authMiddleware, (req: Request, res: Response) => {
   if (!req.body?.doctorId || !req.body?.startTime) {
     res.status(400).send("Error: Invalid request");
     console.log("Invalid request: ", req.body);
     return;
   }
 
+  if (!req.isAuth || !req.user) {
+    res.status(401).send("Unauthorized");
+    return;
+  }
+
   mqttPublishWithResponse(req, res, "appointments", "appointments/book", {
+    userId: req.user,
     doctorId: req.body.doctorId,
     startTime: req.body.startTime,
   });
@@ -229,7 +235,7 @@ app.post("/appointments", (req: Request, res: Response) => {
  *  Unbook a slot
  *  Request Format:
  *      Endpoint: /appointments
- *      Body: { doctorId: <ObjectId>, startTime: <Date> }
+ *      Body: { userId: <ObjectId>, doctorId: <ObjectId>, startTime: <Date> }
  */
 app.delete("/appointments", authMiddleware, (req: Request, res: Response) => {
   if (!req.body?.startTime || !req.body?.doctorId) {
@@ -238,7 +244,13 @@ app.delete("/appointments", authMiddleware, (req: Request, res: Response) => {
     return;
   }
 
+  if (!req.isAuth || !req.user) {
+    res.status(401).send("Unauthorized");
+    return;
+  }
+
   mqttPublishWithResponse(req, res, "appointments", "appointments/cancel", {
+    userId: req.user,
     doctorId: req.body.doctorId,
     startTime: req.body.startTime,
   });

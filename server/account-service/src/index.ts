@@ -25,6 +25,7 @@ const jwtKey: PrivateKey = process.env.JWT_KEY;
 function createUserToken(user: User) {
   return sign(
     {
+      userId: user._id,
       pn: user.personnummer,
       name: user.name,
     },
