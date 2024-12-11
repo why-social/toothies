@@ -4,11 +4,6 @@ main {
   gap: 1rem;
 }
 
-nav {
-  height: 50px;
-  background: blue;
-}
-
 content {
   position: relative;
 }
