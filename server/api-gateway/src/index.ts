@@ -30,7 +30,7 @@ app.use(express.json());
 
 const mqttClient = mqtt.connect(
   "tls://0fc2e0e6e10649f790f059e77c606dfe.s1.eu.hivemq.cloud:8883",
-  mqttOptions,
+  mqttOptions
 );
 
 let serviceMap: Map<string, ServicesList> = new Map(); // TODO enum instead of string?
@@ -101,7 +101,7 @@ function mqttPublishWithResponse(
   res: Response,
   service: string,
   topic: string,
-  message?: Object,
+  message?: Object
 ) {
   const options: IClientPublishOptions = { qos: 2 };
   const timeoutDuration = 3000;
@@ -148,7 +148,7 @@ function mqttPublishWithResponse(
 
     const timeout = setTimeout(() => {
       console.log(
-        `Request to service ${serviceId} timed out. Redirecting to another service...`,
+        `Request to service ${serviceId} timed out. Redirecting to another service...`
       );
       mqttClient.removeListener("message", responseHandler);
       mqttClient.unsubscribe(responseTopic);
@@ -179,17 +179,39 @@ function mqttPublishWithResponse(
 }
 
 // Clinic enpoints
-
 /**
- *  Get appointment slots of a doctor
+ *  Get all clinics
  *  Request Format:
  *      Endpoint: /clinics
+ */
+app.get("/clinics", (req: Request, res: Response) => {
+  mqttPublishWithResponse(req, res, "appointments", "clinics/get");
+});
+
+/**
+ *  Get a clinic
+ *  Request Format:
+ *      Endpoint: /clinics/:id
+ */
+app.get("/clinics/:id", (req: Request, res: Response) => {
+  if (!req.params.id) {
+    res.status(400).send("No id");
+  }
+  mqttPublishWithResponse(req, res, "appointments", "clinics/get", {
+    clinicId: req.params.id,
+  });
+});
+
+/**
+ *  Get all doctors
+ *  Request Format:
+ *      Endpoint: /doctors
  */
 app.get("/doctors", (req: Request, res: Response) => {
   mqttPublishWithResponse(req, res, "appointments", "doctors/get");
 });
 
-// Doctor endpoints
+// Booking endpoints
 /**
  *  Get appointment slots of a doctor
  *  Request Format:

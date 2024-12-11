@@ -5,6 +5,7 @@ import { Login } from './views/authentication/login/login';
 import { Register } from './views/authentication/register/register';
 import { AuthGuard } from './views/authentication/guard';
 import { NotFound } from './views/not.found/not.found';
+import { ClinicView } from './views/clinic/clinic';
 
 export const routes: Routes = [
   {
@@ -18,6 +19,13 @@ export const routes: Routes = [
     redirectTo: '404',
     pathMatch: 'full',
   },
+  {
+    path: 'clinic/:id',
+    pathMatch: 'full',
+    component: ClinicView,
+    canActivate: [AuthGuard],
+  },
+  { path: 'clinic', redirectTo: '404', pathMatch: 'full' },
   {
     path: '',
     component: Home,

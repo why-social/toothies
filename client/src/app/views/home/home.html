@@ -1,7 +1,11 @@
-<mat-tab-group>
+<mat-tab-group mat-stretch-tabs="true" mat-align-tabs="center" preserveContent>
   <mat-tab label="Doctors">
-	<doctors/>
+    <doctors [doctors]="doctors" />
   </mat-tab>
-  <mat-tab label="Clinics"> </mat-tab>
-  <mat-tab label="Map"> </mat-tab>
+  <mat-tab label="Clinics">
+    <clinics [clinics]="clinics" />
+  </mat-tab>
+  <mat-tab label="Map">
+    <clinic-map [clinics]="clinics" />
+  </mat-tab>
 </mat-tab-group>

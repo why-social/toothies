@@ -1,0 +1,16 @@
+<mat-card appearance="outlined">
+  <mat-card-content>
+    <mat-card-title-group>
+      <mat-card-title>{{ clinic.name }}</mat-card-title>
+    </mat-card-title-group>
+
+    <div class="location">
+      <mat-icon class="material-icons-outlined"> location_on </mat-icon>
+      {{ clinic.location.city + ", " + clinic.location.address }}
+    </div>
+
+    <mat-card-actions>
+      <button mat-stroked-button (click)="goToClinic()">See doctors</button>
+    </mat-card-actions>
+  </mat-card-content>
+</mat-card>

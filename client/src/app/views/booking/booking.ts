@@ -1,18 +1,17 @@
-import { Component, inject, Injectable } from "@angular/core";
-import { MatDialog } from "@angular/material/dialog";
-import { Calendar } from "../../components/calendar/calendar";
-import { Slot } from "../../types/slots";
-import { Dialog } from "./dialog/dialog";
-import { HttpClient } from "@angular/common/http";
-import { ActivatedRoute } from "@angular/router";
-import { Socket } from "ngx-socket-io";
-import { map } from "rxjs/operators";
+import { Component, inject, Injectable } from '@angular/core';
+import { MatDialog } from '@angular/material/dialog';
+import { CalendarComponent } from '../../components/calendar/calendar.component';
+import { CalendarSlot } from '../../components/calendar/calendar.slots.interface';
+import { BookingDialogComponent } from '../../components/booking/dialog/booking.dialog';
+import { HttpClient } from '@angular/common/http';
+import { ActivatedRoute } from '@angular/router';
+import { Socket } from 'ngx-socket-io';
 
-@Injectable({ providedIn: "root" })
+@Injectable({ providedIn: 'root' })
 @Component({
-  templateUrl: "./booking.html",
-  styleUrl: "./booking.css",
-  imports: [Calendar],
+  templateUrl: './booking.html',
+  styleUrl: './booking.css',
+  imports: [CalendarComponent],
 })
 export class Booking {
   readonly dialog = inject(MatDialog);
@@ -20,28 +19,34 @@ export class Booking {
   private route = inject(ActivatedRoute);
   private socket = inject(Socket);
 
-  slots: Array<Slot> = [];
+  protected slots: Array<CalendarSlot> = [];
+
   private doctorId: string | null = null;
-  private openedDialog: Slot | null = null;
+  private doctorName: string | null = null;
+  private clinicName: string | null = null;
+  private openedDialog: CalendarSlot | null = null;
 
   public ngOnInit() {
     this.route.paramMap.subscribe((params) => {
-      this.doctorId = params.get("id");
+      this.doctorId = params.get('id');
 
       if (this.doctorId) {
         this.fetchSlots();
         this.socket.on(this.doctorId, (msg: any) => {
           const update = JSON.parse(msg);
+
           let slot = this.slots.find(
-            (e) => e.startTime.toISOString() == update.startTime,
+            (el) => el.startTime.toISOString() == update.startTime,
           );
 
           if (slot) {
             slot.isBooked = update.isBooked;
+
             if (this.openedDialog == slot) {
               this.dialog.closeAll();
+
               alert(
-                "Unfortunately, this slot has been booked by someone else!",
+                'Unfortunately, this slot has been booked by someone else!',
               );
             }
           }
@@ -52,50 +57,52 @@ export class Booking {
 
   private fetchSlots() {
     this.http
-      .get<
-        Array<Slot>
-      >(`http://localhost:3000/appointments?doctorId=${this.doctorId}`)
+      .get<any>(`http://localhost:3000/appointments?doctorId=${this.doctorId}`)
       .subscribe({
         next: (data) => {
-          this.slots = data.map(
-            (it) =>
-              ({
-                startTime: new Date(it.startTime),
-                endTime: new Date(it.endTime),
-                isBooked: it.isBooked,
-              }) as Slot,
-          );
+          this.doctorName = data.doctor.name;
+          this.clinicName = data.doctor.clinic.name;
+
+          this.slots = data.slots.map((it: CalendarSlot) => ({
+            startTime: new Date(it.startTime),
+            endTime: new Date(it.endTime),
+            isBooked: it.isBooked,
+          }));
         },
         error: (error) => {
-          console.error("Error fetching slots: ", error);
+          console.error('Error fetching slots: ', error);
         },
       });
   }
 
-  public openDialog(slot: Slot) {
+  public openDialog(slot: CalendarSlot) {
     this.openedDialog = slot;
+
+    const timeString = `${slot.startTime.toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    })} - ${slot.endTime.toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    })}`;
+
     this.dialog
-      .open(Dialog, {
-        width: "250px",
+      .open(BookingDialogComponent, {
+        width: '250px',
         data: {
-          title: slot.isBooked ? "Cancel Booking" : "Confirm Booking",
-          message: `Time: ${slot.startTime.toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
-            hour12: false,
-          })} - ${slot.endTime.toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
-            hour12: false,
-          })}`,
+          title: slot.isBooked ? 'Cancel Booking' : 'Confirm Booking',
+          message: `Clinic: ${this.clinicName}\nDoctor: ${this.doctorName}\nTime: ${timeString}`,
         },
-        enterAnimationDuration: "200ms",
-        exitAnimationDuration: "200ms",
+        enterAnimationDuration: '200ms',
+        exitAnimationDuration: '200ms',
       })
       .afterClosed()
       .subscribe((result) => {
         this.openedDialog = null;
-        if (result == "success") {
+
+        if (result == 'success') {
           if (slot.isBooked) {
             this.http
               .delete(`http://localhost:3000/appointments`, {
@@ -109,7 +116,7 @@ export class Booking {
                   // slot.isBooked = false;
                 },
                 error: (error) => {
-                  console.error("Error fetching slots: ", error);
+                  console.error('Error fetching slots: ', error);
                 },
               });
           } else {
@@ -123,7 +130,7 @@ export class Booking {
                   // slot.isBooked = true;
                 },
                 error: (error) => {
-                  console.error("Error fetching slots: ", error);
+                  console.error('Error fetching slots: ', error);
                 },
               });
           }
