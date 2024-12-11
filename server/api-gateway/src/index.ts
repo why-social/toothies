@@ -207,7 +207,7 @@ app.get("/appointments", (req: Request, res: Response) => {
 });
 
 /**
- *  Get appointment slots of a doctor
+ *  Book a slot
  *  Request Format:
  *      Endpoint: /appointments
  *      Body: { doctorId: <ObjectId>, startTime: <Date> }
@@ -226,7 +226,7 @@ app.post("/appointments", (req: Request, res: Response) => {
 });
 
 /**
- *  Get appointment slots of a doctor
+ *  Unbook a slot
  *  Request Format:
  *      Endpoint: /appointments
  *      Body: { doctorId: <ObjectId>, startTime: <Date> }
@@ -324,6 +324,29 @@ app.post("/auth/login", (req: Request, res: Response) => {
   }
   mqttPublishWithResponse(req, res, "accounts", "accounts/login", {
     data: {
+      personnummer: req.body.personnummer,
+      passwordHash: req.body.passwordHash,
+    },
+  });
+});
+
+/*
+ * Register a user. Returns user data on success
+ */
+app.post("/auth/register", (req: Request, res: Response) => {
+  if (
+    !req.body.personnummer ||
+    !req.body.passwordHash ||
+    !req.body.name ||
+    !req.body.email
+  ) {
+    res.status(400).send("Error: Invalid request");
+    return;
+  }
+  mqttPublishWithResponse(req, res, "accounts", "accounts/register", {
+    data: {
+      name: req.body.name,
+      email: req.body.email,
       personnummer: req.body.personnummer,
       passwordHash: req.body.passwordHash,
     },

@@ -55,7 +55,7 @@ const emailRegex = /^(?=.{3,40}$)[^\s@]+@[^\s@]+\.[^\s@]+$/;
  * - day in capture group 3
  * - unique nums in capture group 4
  */
-const pnRegex = /^(?:19|20)?(\d{2})(\d{2})(\d{2})?-?(\d{4})$/;
+const pnRegex = /^(?:19|20)?(\d{2})(\d{2})(\d{2})-?(\d{4})$/;
 
 // ----------------- MQTT CALLBACKS -----------------
 // Topic: accounts/login
@@ -160,7 +160,7 @@ const createUser = async (message: Buffer) => {
     broker.publishResponse(reqId, data);
     console.log(`Created user:\n${JSON.stringify(data)}`);
   } else {
-    broker.publishError(reqId, "Invalid personnummer");
+    broker.publishError(reqId, "User already exists");
     console.error(`User already exists: \n${message}`);
   }
 };
