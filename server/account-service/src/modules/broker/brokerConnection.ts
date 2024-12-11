@@ -10,6 +10,7 @@ dotenv.config();
 
 export class BrokerConnection {
   private static readonly PING_ECHO_TIMEOUT = 3_000;
+  private static readonly HEARTBEAT_INTERVAL = 10_000;
   private static readonly MQTT_OPTIONS: IClientOptions = {
     username: String(process.env.MQTT_USERNAME),
     password: String(process.env.MQTT_PASSWORD),
@@ -19,6 +20,7 @@ export class BrokerConnection {
 
   private readonly uuid: String;
   private readonly name: String;
+  private readonly hearbeatMessage: string;
 
   private readonly lifecycleListener: BrokerLifecycleListener;
   private readonly messageListeners: Map<string, (message: Buffer) => void>;
@@ -28,6 +30,10 @@ export class BrokerConnection {
   constructor(name: String, lifecycleListener: BrokerLifecycleListener) {
     this.name = name;
     this.uuid = String(uniqid());
+    this.hearbeatMessage = JSON.stringify({
+      serviceId: this.uuid,
+      containerName: this.name,
+    });
     this.ready = false;
 
     this.lifecycleListener = lifecycleListener;
@@ -52,16 +58,31 @@ export class BrokerConnection {
       this.mqttClient.publish(`${name}/ping/${this.uuid}`, "ping");
 
       const timeout = setTimeout(() => {
+        // stop listening to echo's
         this.mqttClient.unsubscribe(`${name}/echo/#`);
         this.mqttClient.off("message", instanceTestMessageCallback);
 
+        // start responding to ping's
         this.mqttClient.subscribe(`${name}/ping/#`);
-
         this.mqttClient.on("message", this.messageHandler);
 
-        console.log("Connected to MQTT Broker.");
+        // Heartbeat
+        setInterval(() => {
+          this.mqttClient.publish(
+            `heartbeat/${name}`,
+            this.hearbeatMessage,
+            (err) => {
+              if (err)
+                return console.error(
+                  `Failed to publish message: ${err.message}`,
+                );
+            },
+          );
+        }, BrokerConnection.HEARTBEAT_INTERVAL);
 
+        console.log("Connected to MQTT Broker.");
         this.ready = true;
+
         if (this.lifecycleListener) {
           this.lifecycleListener.onConnected();
         }

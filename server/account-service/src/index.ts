@@ -2,7 +2,7 @@ import { BrokerConnection } from "./modules/broker/brokerConnection";
 import { MongoClient, ObjectId } from "mongodb";
 import dotenv from "dotenv";
 import { sign, verify, PrivateKey } from "jsonwebtoken";
-import { User } from "./types";
+import { User } from "./types/User";
 
 dotenv.config();
 if (!process.env.ATLAS_CONN_STR) {
@@ -59,7 +59,7 @@ const pnRegex = /^(?:19|20)?(\d{2})(\d{2})(\d{2})?-?(\d{4})$/;
 
 // ----------------- MQTT CALLBACKS -----------------
 // Topic: accounts/login
-// Message format: {reqId: <string>, timestamp: <number>, data: {username: <string>, passwordHash: <string>}}
+// Message format: {reqId: <string>, timestamp: <number>, data: {personnummer: <string>, passwordHash: <string>}}
 const authenticateUser = async (message: Buffer) => {
   let data, reqId;
   try {
@@ -167,6 +167,7 @@ const broker: BrokerConnection = new BrokerConnection("accounts", {
     process.exit(0);
   },
   onConnected() {
+    // TODO: topics must include serviceId
     broker.subscribe("login", authenticateUser);
     broker.subscribe("register", createUser);
   },
