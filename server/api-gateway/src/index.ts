@@ -21,7 +21,7 @@ const mqttOptions: IClientOptions = {
 };
 
 const heartbeatTopic = "heartbeat/+";
-const heartbeatRx = /heartbeat\/(\w+)/;
+const heartbeatRx = /^heartbeat\/(\w+)$/;
 
 app.use(cors());
 // Parse requests of content-type 'application/json'
@@ -79,13 +79,6 @@ mqttClient.on("connect", () => {
 
       if (!servicesList.hasService(serviceId)) {
         servicesList.addService(msgService);
-        mqttClient.subscribe(`appointments/${serviceId}/res`, (err) => {
-          if (err)
-            return console.error(
-              `Failed to subscribe to response topic for service: ${containerName}`,
-            );
-          console.log(`Added service: ${containerName}`);
-        });
       } else {
         servicesList.updateHeartbeat(serviceId);
       }

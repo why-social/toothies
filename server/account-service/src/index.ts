@@ -61,11 +61,12 @@ const pnRegex = /^(?:19|20)?(\d{2})(\d{2})(\d{2})?-?(\d{4})$/;
 // Topic: accounts/login
 // Message format: {reqId: <string>, timestamp: <number>, data: {personnummer: <string>, passwordHash: <string>}}
 const authenticateUser = async (message: Buffer) => {
-  let data, reqId;
+  let data, reqId, timestamp;
   try {
     const payload = JSON.parse(message.toString());
     data = payload.data;
-    reqId = payload.reqId;
+    reqId = payload.timestamp; // TODO change to reqId
+    timestamp = payload.timestamp;
   } catch (e) {
     if (e instanceof Error) {
       console.error(e.message);
@@ -76,7 +77,8 @@ const authenticateUser = async (message: Buffer) => {
     return;
   }
 
-  if (!data || !reqId) {
+  if (!data || !timestamp) {
+    // TODO add check for reqId
     broker.publishError(reqId, "Malformed request");
     console.error(`Malformed request: ${message}`);
     return;
@@ -109,22 +111,24 @@ const authenticateUser = async (message: Buffer) => {
 //   data: { personnummer: <string>, passwordHash: <string>, name: <string>, email: <string>}
 // }
 const createUser = async (message: Buffer) => {
-  let data, reqId;
+  let data, reqId, timestamp;
   try {
     const payload = JSON.parse(message.toString());
     data = payload.data;
-    reqId = payload.reqId;
+    reqId = payload.timestamp; // TODO change to reqId
+    timestamp = payload.timestamp;
   } catch (e) {
     if (e instanceof Error) {
       console.error(e.message);
     } else {
       console.error(e);
     }
-    broker.publishError(reqId, "Malformed request");
+    broker.publishError(timestamp, "Malformed request");
     return;
   }
 
-  if (!data || !reqId) {
+  if (!data || !timestamp) {
+    // TODO add check for reqId
     broker.publishError(reqId, "Malformed request");
     console.error(`Malformed request: ${message}`);
     return;

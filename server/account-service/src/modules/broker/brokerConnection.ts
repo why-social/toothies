@@ -17,6 +17,7 @@ export class BrokerConnection {
   };
 
   private readonly mqttClient: MqttClient;
+  private readonly resTopicPrefix: string;
 
   private readonly uuid: String;
   private readonly name: String;
@@ -34,6 +35,7 @@ export class BrokerConnection {
       serviceId: this.uuid,
       containerName: this.name,
     });
+    this.resTopicPrefix = `${this.uuid}/res/`;
     this.ready = false;
 
     this.lifecycleListener = lifecycleListener;
@@ -123,7 +125,7 @@ export class BrokerConnection {
 
   public subscribe(topic: string, callback: (message: Buffer) => void) {
     if (this.ready) {
-      topic = `${this.name}/${topic}`;
+      topic = `${this.uuid}/${this.name}/${topic}`;
 
       this.mqttClient.subscribe(topic);
       this.messageListeners.set(topic, callback);
@@ -156,7 +158,7 @@ export class BrokerConnection {
       timestamp: Date.now(),
       data,
     });
-    this.publish(`res/${reqId}`, message);
+    this.publish(this.resTopicPrefix + reqId, message);
   }
 
   public publishError(reqId: string, message: string) {
@@ -167,6 +169,6 @@ export class BrokerConnection {
         message: message,
       },
     });
-    this.publish(`res/${reqId}`, res);
+    this.publish(this.resTopicPrefix + reqId, message);
   }
 }
