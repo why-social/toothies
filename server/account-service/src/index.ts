@@ -151,13 +151,25 @@ const createUser = async (message: Buffer) => {
     return;
   }
 
+  // concatenates all capture groups into one string, to avoid duplicates in different format
+  const pnParsed = pnRegex
+    .exec(data.personnummer)
+    ?.slice(1)
+    .reduce((prev, curr, i, arr) => prev + curr);
+
   const userExists = await users.findOne({
-    personnummer: data.personnummer,
+    personnummer: pnParsed,
   });
 
+  const userEntry = {
+    personnummer: pnParsed,
+    passwordHash: data.passwordHash,
+    name: data.name,
+    email: data.email,
+  };
   if (!userExists) {
-    users.insertOne(data);
-    broker.publishResponse(reqId, data);
+    users.insertOne(userEntry);
+    broker.publishResponse(reqId, userEntry);
     console.log(`Created user:\n${JSON.stringify(data)}`);
   } else {
     broker.publishError(reqId, "User already exists");
