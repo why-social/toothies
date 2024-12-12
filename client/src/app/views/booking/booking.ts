@@ -5,13 +5,14 @@ import { CalendarSlot } from '../../components/calendar/calendar.slots.interface
 import { BookingDialogComponent } from '../../components/booking/dialog/booking.dialog';
 import { HttpClient } from '@angular/common/http';
 import { ActivatedRoute } from '@angular/router';
+import { MatIcon } from '@angular/material/icon';
 import { Socket } from 'ngx-socket-io';
 
 @Injectable({ providedIn: 'root' })
 @Component({
   templateUrl: './booking.html',
   styleUrl: './booking.css',
-  imports: [CalendarComponent],
+  imports: [CalendarComponent, MatIcon],
 })
 export class Booking {
   readonly dialog = inject(MatDialog);
@@ -20,10 +21,10 @@ export class Booking {
   private socket = inject(Socket);
 
   protected slots: Array<CalendarSlot> = [];
+  protected doctorName: string | null = null;
+  protected clinicName: string | null = null;
 
   private doctorId: string | null = null;
-  private doctorName: string | null = null;
-  private clinicName: string | null = null;
   private openedDialog: CalendarSlot | null = null;
 
   public ngOnInit() {
