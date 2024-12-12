@@ -1,5 +1,16 @@
 <header>
-  <h3>Toothies</h3>
+  <button mat-icon-button class="back" (click)="location.back()">
+    <mat-icon>arrow_back_ios</mat-icon>
+  </button>
+  <h3 (click)="router.navigateByUrl('')">Toothies</h3>
+  <button
+    class="logout"
+    mat-stroked-button
+    (click)="logOut()"
+    [style.display]="isLoginGuardProtected() ? 'flex' : 'none'"
+  >
+    <mat-icon>logout</mat-icon><span>Log out</span>
+  </button>
 </header>
 
 <main>

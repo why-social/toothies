@@ -1,0 +1,37 @@
+.container {
+  max-width: 600px;
+}
+
+.section {
+  color: var(--mat-sys-on-background);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding-top: 24px;
+}
+
+.login {
+  margin-left: 28px;
+  margin-right: 28px;
+  margin-bottom: 1rem;
+}
+
+mat-spinner {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+button {
+  white-space: nowrap;
+}
+
+.buttons {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-direction: row;
+}
+
+.buttons.submit > button:nth-child(1) {
+  margin-right: auto;
+}
