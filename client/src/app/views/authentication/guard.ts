@@ -18,8 +18,7 @@ function isLoggedIn(): boolean {
     try {
       const decoded = jwtDecode(token);
 
-      // TODO: check expiriy
-      return true;
+      return !!decoded?.exp && new Date().getTime() / 1000 < decoded.exp;
     } catch (error) {
       return true;
     }

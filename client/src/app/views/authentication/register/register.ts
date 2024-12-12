@@ -7,10 +7,14 @@ import {
   ValidationErrors,
   ReactiveFormsModule,
 } from '@angular/forms';
+import { Router } from '@angular/router';
 import { MatInputModule } from '@angular/material/input';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatStepperModule } from '@angular/material/stepper';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatButtonModule } from '@angular/material/button';
+import { HttpClient } from '@angular/common/http';
+import { hashSync } from 'bcrypt-ts';
 
 @Component({
   templateUrl: './register.html',
@@ -20,13 +24,22 @@ import { MatButtonModule } from '@angular/material/button';
     MatStepperModule,
     FormsModule,
     ReactiveFormsModule,
+    MatProgressSpinnerModule,
     MatFormFieldModule,
     MatInputModule,
   ],
 })
 export class Register {
   private formBuilder = inject(FormBuilder);
+
+  protected http = inject(HttpClient);
+  protected router = inject(Router);
   protected passwordsMatch!: boolean;
+  protected registering: boolean;
+
+  constructor() {
+    this.registering = false;
+  }
 
   personnummer = this.formBuilder.group({
     personnummer: [
@@ -79,9 +92,34 @@ export class Register {
       this.personnummer.valid &&
       this.name.valid &&
       this.mail.valid &&
-      this.password.valid
+      this.password.valid &&
+      this.password?.controls['password']?.value
     ) {
-      // register user
+      this.registering = true;
+
+      this.http
+        .post(`http://localhost:3000/auth/register`, {
+          personnummer: this.personnummer.value.personnummer,
+          name: this.name.value.name,
+          email: this.mail.value.mail,
+          passwordHash: hashSync(this.password.controls['password'].value),
+        })
+        .subscribe({
+          next: (res: any) => {
+            if (res?.data?.token) {
+              localStorage.setItem('token', res.data.token);
+
+              this.router.navigateByUrl('');
+            }
+
+            this.registering = false;
+          },
+          error: (error) => {
+            console.error('Error registering user: ', error);
+
+            this.registering = false;
+          },
+        });
     }
   }
 }
