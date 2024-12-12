@@ -25,7 +25,7 @@ export class ClinicMap implements AfterViewInit, OnChanges {
 
   private markerClusterGroup!: Leaflet.MarkerClusterGroup;
   @ViewChild('map') private mapElement!: ElementRef;
-  @Input() public clinics!: Array<Clinic>;
+  @Input() public clinics: Array<Clinic> | null | undefined;
   private markers: Map<string, Leaflet.Marker>;
   private map!: Leaflet.Map;
 
