@@ -11,6 +11,15 @@ export const AuthGuard: CanActivateFn = (): boolean => {
   return true;
 };
 
+export const NegatedAuthGuard: CanActivateFn = (): boolean => {
+  if (isLoggedIn()) {
+    inject(Router).navigateByUrl('/');
+    return false;
+  }
+
+  return true;
+};
+
 function isLoggedIn(): boolean {
   const token = localStorage.getItem('token');
 

@@ -3,7 +3,7 @@ import { Booking } from './views/booking/booking';
 import { Home } from './views/home/home';
 import { Login } from './views/authentication/login/login';
 import { Register } from './views/authentication/register/register';
-import { AuthGuard } from './views/authentication/guard';
+import { AuthGuard, NegatedAuthGuard } from './views/authentication/guard';
 import { NotFound } from './views/not.found/not.found';
 import { ClinicView } from './views/clinic/clinic';
 
@@ -25,7 +25,11 @@ export const routes: Routes = [
     component: ClinicView,
     canActivate: [AuthGuard],
   },
-  { path: 'clinic', redirectTo: '404', pathMatch: 'full' },
+  {
+    path: 'clinic',
+    redirectTo: '404',
+    pathMatch: 'full',
+  },
   {
     path: '',
     component: Home,
@@ -33,8 +37,18 @@ export const routes: Routes = [
     canActivate: [AuthGuard],
   },
 
-  { path: 'login', pathMatch: 'full', component: Login },
-  { path: 'register', pathMatch: 'full', component: Register },
+  {
+    path: 'login',
+    pathMatch: 'full',
+    component: Login,
+    canActivate: [NegatedAuthGuard],
+  },
+  {
+    path: 'register',
+    pathMatch: 'full',
+    component: Register,
+    canActivate: [NegatedAuthGuard],
+  },
 
   { path: '404', component: NotFound },
 

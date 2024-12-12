@@ -13,7 +13,11 @@ main {
 header {
   box-sizing: border-box;
   position: sticky;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
   top: 0;
+  gap: 1rem;
   width: 100%;
   z-index: 10000;
   padding-top: 1rem;
@@ -24,4 +28,12 @@ header {
   color: var(--mat-sys-on-background);
   background: rgba(18, 20, 14, 0.9);
   backdrop-filter: blur(8px);
+}
+
+header > .logout {
+  margin-left: auto;
+}
+
+header > .back mat-icon {
+  margin-left: 5px;
 }

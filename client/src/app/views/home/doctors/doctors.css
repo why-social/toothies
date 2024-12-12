@@ -7,6 +7,10 @@
   gap: 1rem;
 }
 
+.mdc-linear-progress {
+  width: 100% !important;
+}
+
 .container > * {
   width: 100%;
 }
