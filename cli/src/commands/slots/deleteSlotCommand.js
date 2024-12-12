@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import chalk from "chalk";
 import axios from "axios";
+import { makeRequest } from '../../utils/utils.js';
 
 const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
 const timeRegex = /^\d{2}:\d{2}$/;
@@ -27,20 +28,8 @@ const deleteSlot = new Command("delete")
 	startDate = startDate.getTime();
 
 	// Make an api call to delete a slot and handle the response
-	try {
-		const res = await axios.delete(`${process.env.API_URL}/slots`,
-		{ data: { startDate }, headers: 
-			{ Authorization: `Bearer ${process.env.ACCESS_TOKEN}` }
-		});
-		if(res.data?.message) console.log(res.data.message);
-	} catch (error) {
-		if (error.response && error.response.data) {
-			console.error("Error deleting the slot:", error.response.data);
-		} else {
-			console.error("Error deleting the slot:", error.message);
-		}
-	}
-
+	const res = await makeRequest('delete', `${process.env.API_URL}/slots`, "Error deleting the slot:", { startDate });
+	if(res.data?.message) console.log(res.data.message);
 });
 
 export default deleteSlot;

@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import chalk from "chalk";
-import axios from "axios";
+import { makeRequest, getDoctorId } from '../../utils/utils.js';
 
 const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
 const timeRegex = /^\d{2}:\d{2}$/;
@@ -27,27 +27,10 @@ const cancelAppointment = new Command("cancel")
 	startDate = startDate.getTime();
 
 	// Make an api call to delete an appointment and handle the response
-	try {
-		// Get the doctorId from the token
-		let doctorId = null;
-		doctorId = JSON.parse(atob(process.env.ACCESS_TOKEN.split('.')[1])).userId;
+	const doctorId = await getDoctorId();
 
-		// Check if token is valid
-		if(!doctorId) return console.error("Unauthorized");
-		
-		const res = await axios.delete(`${process.env.API_URL}/appointments?`,
-		{ data: { startTime: startDate, doctorId: doctorId }, headers: 
-			{ Authorization: `Bearer ${process.env.ACCESS_TOKEN}` }
-		});
-		if(res.data?.message) console.log(res.data.message);
-	} catch (error) {
-		if (error.response && error.response.data) {
-			console.error("Error deleting the appointment:", error.response.data);
-		} else {
-			console.error("Error deleting the appointment:", error.message);
-		}
-	}
-
+	const res = await makeRequest('delete', `${process.env.API_URL}/appointments`, "Error deleting the appointment:", { startTime: startDate, doctorId: doctorId});
+	if(res.data?.message) console.log(res.data.message);
 });
 
 export default cancelAppointment;
