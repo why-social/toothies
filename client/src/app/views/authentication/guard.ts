@@ -20,9 +20,9 @@ function isLoggedIn(): boolean {
 
       return !!decoded?.exp && new Date().getTime() / 1000 < decoded.exp;
     } catch (error) {
-      return true;
+      return false;
     }
   }
 
-  return true;
+  return false;
 }

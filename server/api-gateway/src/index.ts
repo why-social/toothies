@@ -352,14 +352,14 @@ app.post("/generateToken", (req: Request, res: Response) => {
  * Authenticate a user. Returns a token if pn/password combo is valid
  */
 app.post("/auth/login", (req: Request, res: Response) => {
-  if (!req.body.personnummer || !req.body.passwordHash) {
+  if (!req.body.personnummer || !req.body.password) {
     res.status(400).send("Error: Invalid request");
     return;
   }
   mqttPublishWithResponse(req, res, "accounts", "accounts/login", {
     data: {
       personnummer: req.body.personnummer,
-      passwordHash: req.body.passwordHash,
+      password: req.body.password,
     },
   });
 });

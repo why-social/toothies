@@ -1,7 +1,8 @@
 import { BrokerConnection } from "./modules/broker/brokerConnection";
 import { MongoClient, ObjectId } from "mongodb";
 import dotenv from "dotenv";
-import { sign, verify, PrivateKey } from "jsonwebtoken";
+import { sign, PrivateKey } from "jsonwebtoken";
+import { compare } from "bcrypt-ts";
 import { User } from "./types/User";
 
 dotenv.config();
@@ -30,7 +31,7 @@ function createUserToken(user: User) {
       name: user.name,
     },
     jwtKey,
-    { expiresIn: "7d" },
+    { expiresIn: "7d" }
   );
 }
 
@@ -60,7 +61,7 @@ const pnRegex = /^(?:19|20)?(\d{2})(\d{2})(\d{2})-?(\d{4})$/;
 
 // ----------------- MQTT CALLBACKS -----------------
 // Topic: accounts/login
-// Message format: {reqId: <string>, timestamp: <number>, data: {personnummer: <string>, passwordHash: <string>}}
+// Message format: {reqId: <string>, timestamp: <number>, data: {personnummer: <string>, password: <string>}}
 const authenticateUser = async (message: Buffer) => {
   let data, reqId, timestamp;
   try {
@@ -84,7 +85,7 @@ const authenticateUser = async (message: Buffer) => {
     console.error(`Malformed request: ${message}`);
     return;
   }
-  if (!data.personnummer || !data.passwordHash) {
+  if (!data.personnummer || !data.password) {
     broker.publishError(reqId, "Missing fields");
     console.error(`Missing fields in request: ${message}`);
     return;
@@ -97,7 +98,7 @@ const authenticateUser = async (message: Buffer) => {
     return;
   }
 
-  if (user.passwordHash == data.passwordHash) {
+  if (await compare(data.password, user.passwordHash)) {
     const token = createUserToken(user as User);
     broker.publishResponse(reqId, { token });
   } else {
