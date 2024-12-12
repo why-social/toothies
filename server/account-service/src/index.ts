@@ -162,15 +162,16 @@ const createUser = async (message: Buffer) => {
     personnummer: pnParsed,
   });
 
-  const userEntry = {
+  const user = {
     personnummer: pnParsed,
     passwordHash: data.passwordHash,
     name: data.name,
     email: data.email,
   };
   if (!userExists) {
-    users.insertOne(userEntry);
-    broker.publishResponse(reqId, userEntry);
+    users.insertOne(user);
+    const token = createUserToken(user as User);
+    broker.publishResponse(reqId, { token });
     console.log(`Created user:\n${JSON.stringify(data)}`);
   } else {
     broker.publishError(reqId, "User already exists");
