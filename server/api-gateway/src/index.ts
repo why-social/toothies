@@ -230,6 +230,76 @@ app.get("/appointments", (req: Request, res: Response) => {
 
 /**
  *  Book a slot
+ *  Get appointment slots of a doctor, with auth and populated with patient names
+ *  Request Format:
+ *      Endpoint: /doctor/appointments?date
+ * 				/doctor/appointment?week
+ */
+app.get(
+  "/doctor/appointments",
+  authMiddleware,
+  (req: Request, res: Response) => {
+    if (!req.isAuth || !req.user) {
+      res.status(401).send("Unauthorized");
+      return;
+    }
+
+    if (req.query.date) {
+      mqttPublishWithResponse(
+        req,
+        res,
+        "appointments",
+        "appointments/getDocDate",
+        {
+          doctorId: req.user,
+          date: req.query.date,
+        }
+      );
+    } else if (req.query.patientName) {
+      mqttPublishWithResponse(
+        req,
+        res,
+        "appointments",
+        "appointments/getDocPatient",
+        {
+          doctorId: req.user,
+          patientName: req.query.patientName,
+        }
+      );
+    } else {
+      res.status(400).send("Invalid request");
+    }
+  }
+);
+
+/**
+ *  Get upcoming appointment slots of a doctor
+ *  Request Format:
+ *      Endpoint: /doctor/appointment/upcoming
+ */
+app.get(
+  "/doctor/appointments/upcoming",
+  authMiddleware,
+  (req: Request, res: Response) => {
+    if (!req.isAuth || !req.user) {
+      res.status(401).send("Unauthorized");
+      return;
+    }
+
+    mqttPublishWithResponse(
+      req,
+      res,
+      "appointments",
+      "appointments/getDocUpcoming",
+      {
+        doctorId: req.user,
+      }
+    );
+  }
+);
+
+/**
+ *  Get appointment slots of a doctor
  *  Request Format:
  *      Endpoint: /appointments
  *      Body: { userId: ObjectId, doctorId: <ObjectId>, startTime: <Date> }

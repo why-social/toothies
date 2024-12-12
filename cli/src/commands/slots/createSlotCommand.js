@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import chalk from "chalk";
 import axios from "axios";
+import { makeRequest } from '../../utils/utils.js';
 
 const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
 const timeRegex = /^\d{2}:\d{2}$/;
@@ -39,21 +40,8 @@ const createSlot = new Command("create")
 	endDate = endDate.getTime();
 
 	// Make an api call to create a slot and handle the response
-	try {
-		const res = await axios.post(`${process.env.API_URL}/slots`,
-		{ startDate, endDate },
-		{ headers: 
-			{ Authorization: `Bearer ${process.env.ACCESS_TOKEN}` }
-		});
-		if(res.data?.message) console.log(res.data.message);
-	} catch (error) {
-		if (error.response && error.response.data) {
-			console.error("Error creating the slot:", error.response.data);
-		} else {
-			console.error("Error creating the slot:", error.message);
-		}
-	}
-
+	const res = await makeRequest('post', `${process.env.API_URL}/slots`, "Error creating the slot:", { startDate, endDate });
+	if(res.data?.message) console.log(res.data.message);
 });
 
 export default createSlot;

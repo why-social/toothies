@@ -16,6 +16,7 @@ const db = atlasClient.db("primary");
 const slots = db.collection("slots");
 const doctors = db.collection("doctors");
 const clinics = db.collection("clinics");
+const users = db.collection("users");
 
 let containerName: string;
 async function getContainerName(): Promise<string> {
@@ -154,11 +155,7 @@ mqttClient.on("message", async (topic, message) => {
       }
     }
     case "appointments": {
-      if (
-        !action ||
-        !payload.doctorId ||
-        (action != "get" && !payload.startTime)
-      ) {
+      if (!action || !payload.doctorId) {
         console.error("Invalid query:");
         console.log(payload);
         break;
@@ -230,6 +227,11 @@ async function handleAppointmentsRequest(payload: any) {
       break;
 
     case "book": // book a slot
+	  if(!payload.startTime) {
+		console.error("Invalid query:");
+		console.log(payload);
+		break;
+	  }
       payload.startTime = new Date(payload.startTime);
       slot = await slots.findOne({
         doctorId: payload.doctorId,
@@ -284,6 +286,11 @@ async function handleAppointmentsRequest(payload: any) {
       break;
 
     case "cancel": // cancel a slot
+	  if(!payload.startTime) {
+		console.error("Invalid query:");
+		console.log(payload);
+		break;
+	  }
       payload.startTime = new Date(payload.startTime);
       slot = await slots.findOne({
         doctorId: payload.doctorId,
@@ -347,6 +354,17 @@ async function handleAppointmentsRequest(payload: any) {
       );
       console.log(`Booking successfully cancelled: ${payload.startTime}`);
       break;
+	
+	case "getDocDate": // get all booked slots for a doctor on a specific day
+		getAppointmentsForDoctorOnDate(payload, responseTopic);
+		break;
+
+	case "getDocUpcoming":
+		getAppointmentsForDoctorUpcoming(payload, responseTopic);
+		break;
+	
+	case "getDocPatient":
+		getAppointmentsForDoctorPerPatient(payload, responseTopic);
 
     default:
       console.error("Invalid action");
@@ -378,12 +396,13 @@ async function handleSlotRequest(payload: any) {
   // if(!doctor)
   // 	return mqttClient.publish(payload.responseTopic, JSON.stringify({message: "Doctor not found"}));
 
-  // Check if the start time is before the current timme
-  if (payload.body.startDate <= new Date())
-    return mqttClient.publish(
-      responseTopic,
-      JSON.stringify({ message: "Invalid time range" })
+	// Check if the start time is before the current timme
+	if (payload.body.startDate <= new Date()) {
+	  return mqttClient.publish(
+		  responseTopic,
+		  JSON.stringify({ message: "Invalid time range" })
     );
+  }
 
   // Check if the time is between 8 am and 8 pm
   if (startDate.getHours() < 8 || startDate.getHours() > 20)
@@ -477,24 +496,16 @@ async function handleSlotRequest(payload: any) {
   }
 }
 
-async function createSlot(
-  payload: any,
-  doctorId: ObjectId,
-  startDate: Date,
-  endDate: Date
-) {
-  const slot = {
-    doctorId: doctorId,
-    startTime: startDate,
-    endTime: endDate,
-    isBooked: false,
-    test: true,
-  };
-  await slots.insertOne(slot);
-  mqttClient.publish(
-    payload.responseTopic,
-    JSON.stringify({ message: "Slot created" })
-  );
+async function createSlot(payload: any, doctorId: ObjectId ,startDate: Date, endDate: Date){
+	const slot = {
+		doctorId: doctorId,
+		startTime: startDate,
+		endTime: endDate,
+		bookedBy: null,
+		test: true,
+	};
+	await slots.insertOne(slot);
+	mqttClient.publish(payload.responseTopic, JSON.stringify({message: "Slot created"}));
 }
 
 async function deleteSlot(payload: any, doctorId: ObjectId, startDate: Date) {
@@ -542,12 +553,9 @@ async function editSlot(
       JSON.stringify({ message: "Slot not found" })
     );
 
-  // Check if the slot is booked
-  if (slot.isBooked)
-    return mqttClient.publish(
-      payload.responseTopic,
-      JSON.stringify({ message: "Unable to update, lot is booked" })
-    );
+	// Check if the slot is booked
+	if(slot.isBooked || slot.bookedBy)
+		return mqttClient.publish(payload.responseTopic, JSON.stringify({message: "Unable to update, slot is booked"}));
 
   // Edit the slot
   slot.startTime = startDate;
@@ -560,4 +568,126 @@ async function editSlot(
     payload.responseTopic,
     JSON.stringify({ message: "Slot edited" })
   );
+}
+
+async function getAppointmentsForDoctorOnDate(payload: any, responseTopic: string){
+	const doctorId = new ObjectId(payload.doctorId);
+	const date = new Date(payload.date);
+
+	// Set the start of the day (00:00:00)
+    const startOfDay = new Date(date.setHours(0, 0, 0, 0));
+
+    // Set the end of the day (23:59:59)
+    const endOfDay = new Date(date.setHours(23, 59, 59, 999));
+
+	const dateAppointments = await slots.aggregate([
+		{
+			$match: {
+				doctorId: doctorId,
+				startTime: {$gte: startOfDay, $lt: endOfDay}
+			}
+		},
+		{
+			$lookup: {
+				from: "users",
+				localField: "bookedBy",
+				foreignField: "_id",
+				as: "patientName"
+			},
+		},
+		{
+			$unwind: "$patientName"
+		},
+		{
+			$project: {
+				startTime: 1,
+				endTime: 1,
+				doctorId: 1,
+				bookedBy: 1,
+				patientName: "$patientName.name"
+			}
+		},
+		{
+			$sort: {startTime: 1}
+		}
+	]).toArray();
+
+	const res = JSON.stringify({
+		data: dateAppointments,
+	})
+
+	mqttClient.publish(responseTopic, res);
+}
+
+
+async function getAppointmentsForDoctorUpcoming(payload: any, responseTopic: string){
+	const doctorId = new ObjectId(payload.doctorId);
+	const startDate = new Date();
+	
+	const upcomingAppointments = await slots.aggregate([
+		{
+			$match: {
+				doctorId: doctorId,
+				startTime: {$gte: startDate}
+			}
+		},
+		{
+			$lookup: {
+				from: "users",
+				localField: "bookedBy",
+				foreignField: "_id",
+				as: "patientName"
+			},
+		},
+		{
+            $unwind: "$patientName"
+        },
+		{
+			$project: {
+				startTime: 1,
+				endTime: 1,
+				doctorId: 1,
+				bookedBy: 1,
+				patientName: "$patientName.name"
+			}
+		},
+		{
+			$sort: {startTime: 1}
+		},
+		{
+			$limit: 200
+		}
+	]).toArray();
+
+	const res = JSON.stringify({
+		data: upcomingAppointments,
+	})
+
+	mqttClient.publish(responseTopic, res);
+}
+
+async function getAppointmentsForDoctorPerPatient(payload: any, responseTopic: string){
+	const doctorId = new ObjectId(payload.doctorId);
+	const patientName = payload.patientName;
+	const patient = await users.findOne({name: patientName});
+	if(!patient){
+		return mqttClient.publish(responseTopic, JSON.stringify({message: "Patient not found"}));
+	}
+	const patientId = patient._id;
+
+	const patientAppointments = await slots.find({
+		doctorId: doctorId,
+		bookedBy: patientId
+	}).toArray();
+
+	const appointmentsWithNames = patientAppointments.map(appointment => {
+		appointment.patientName = patientName;
+		return appointment;
+	});
+
+	const res = JSON.stringify({
+		data: appointmentsWithNames
+	})
+
+	mqttClient.publish(responseTopic, res);
 }
