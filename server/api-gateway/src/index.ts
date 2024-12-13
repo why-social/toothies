@@ -217,7 +217,6 @@ app.get("/doctors", (req: Request, res: Response) => {
  *  Request Format:
  *      Endpoint: /appointments?doctorId
  */
-// TODO: Auth
 app.get("/appointments", authMiddleware, (req: Request, res: Response) => {
   if (!req.query?.doctorId) {
     res.status(400).send("No doctor id specified");
