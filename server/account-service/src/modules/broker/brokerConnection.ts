@@ -35,7 +35,7 @@ export class BrokerConnection {
       serviceId: this.uuid,
       containerName: this.name,
     });
-    this.resTopicPrefix = `${this.uuid}/res/`;
+    this.resTopicPrefix = `res/`;
     this.ready = false;
 
     this.lifecycleListener = lifecycleListener;
@@ -125,7 +125,7 @@ export class BrokerConnection {
 
   public subscribe(topic: string, callback: (message: Buffer) => void) {
     if (this.ready) {
-      topic = `${this.uuid}/${this.name}/${topic}`;
+      topic = `${this.uuid}/${topic}`;
 
       this.mqttClient.subscribe(topic);
       this.messageListeners.set(topic, callback);
@@ -136,8 +136,8 @@ export class BrokerConnection {
 
   public unsubscribe(topic: string) {
     if (this.ready) {
-      this.mqttClient.unsubscribe(topic);
-      this.messageListeners.delete(topic);
+      this.mqttClient.unsubscribe(`${this.uuid}/${topic}`);
+      this.messageListeners.delete(`${this.uuid}/${topic}`);
     } else {
       console.warn("Client tried to unsubscribe before acknowledgement.");
     }
@@ -165,10 +165,10 @@ export class BrokerConnection {
     const res = JSON.stringify({
       reqId,
       timestamp: Date.now(),
-      error: {
+      data: {
         message: message,
       },
     });
-    this.publish(this.resTopicPrefix + reqId, message);
+    this.publish(this.resTopicPrefix + reqId, res);
   }
 }

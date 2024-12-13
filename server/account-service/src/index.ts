@@ -31,7 +31,7 @@ function createUserToken(user: User) {
       name: user.name,
     },
     jwtKey,
-    { expiresIn: "7d" }
+    { expiresIn: "7d" },
   );
 }
 
@@ -67,7 +67,7 @@ const authenticateUser = async (message: Buffer) => {
   try {
     const payload = JSON.parse(message.toString());
     data = payload.data;
-    reqId = payload.timestamp; // TODO change to reqId
+    reqId = payload.reqId;
     timestamp = payload.timestamp;
   } catch (e) {
     if (e instanceof Error) {
@@ -117,7 +117,7 @@ const createUser = async (message: Buffer) => {
   try {
     const payload = JSON.parse(message.toString());
     data = payload.data;
-    reqId = payload.timestamp; // TODO change to reqId
+    reqId = payload.reqId;
     timestamp = payload.timestamp;
   } catch (e) {
     if (e instanceof Error) {

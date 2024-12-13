@@ -56,7 +56,7 @@ app.get("/clinics", (req: Request, res: Response) => {
     {
       onResponse(mres: MqttResponse) {
         // todo: get status from response
-        res.status(200).send(mres);
+        res.status(200).send(mres.data);
       },
       onServiceError(msg: string) {
         res.status(500).send(msg);
@@ -83,7 +83,7 @@ app.get("/clinics/:id", (req: Request, res: Response) => {
     {
       onResponse(mres: MqttResponse) {
         // todo: get status from response
-        res.status(200).send(mres);
+        res.status(200).send(mres.data);
       },
       onServiceError(msg: string) {
         res.status(500).send(msg);
@@ -105,7 +105,7 @@ app.get("/doctors", (req: Request, res: Response) => {
     {
       onResponse(mres: MqttResponse) {
         // todo: get status from response
-        res.status(200).send(mres);
+        res.status(200).send(mres.data);
       },
       onServiceError(msg: string) {
         res.status(500).send(msg);
@@ -138,7 +138,7 @@ app.get("/appointments", authMiddleware, (req: Request, res: Response) => {
     {
       onResponse(mres: MqttResponse) {
         // todo: get status from response
-        res.status(200).send(mres);
+        res.status(200).send(mres.data);
       },
       onServiceError(msg: string) {
         res.status(500).send(msg);
@@ -165,7 +165,7 @@ app.get("/appointments/user", authMiddleware, (req: Request, res: Response) => {
     {
       onResponse(mres: MqttResponse) {
         // todo: get status from response
-        res.status(200).send(mres);
+        res.status(200).send(mres.data);
       },
       onServiceError(msg: string) {
         res.status(500).send(msg);
@@ -198,7 +198,7 @@ app.get(
         {
           onResponse(mres: MqttResponse) {
             // todo: get status from response
-            res.status(200).send(mres);
+            res.status(200).send(mres.data);
           },
           onServiceError(msg: string) {
             res.status(500).send(msg);
@@ -213,7 +213,7 @@ app.get(
         {
           onResponse(mres: MqttResponse) {
             // todo: get status from response
-            res.status(200).send(mres);
+            res.status(200).send(mres.data);
           },
           onServiceError(msg: string) {
             res.status(500).send(msg);
@@ -247,7 +247,7 @@ app.get(
       {
         onResponse(mres: MqttResponse) {
           // todo: get status from response
-          res.status(200).send(mres);
+          res.status(200).send(mres.data);
         },
         onServiceError(msg: string) {
           res.status(500).send(msg);
@@ -286,7 +286,7 @@ app.post("/appointments", authMiddleware, (req: Request, res: Response) => {
     {
       onResponse(mres: MqttResponse) {
         // todo: get status from response
-        res.status(200).send(mres);
+        res.status(200).send(mres.data);
       },
       onServiceError(msg: string) {
         res.status(500).send(msg);
@@ -324,7 +324,7 @@ app.delete("/appointments", authMiddleware, (req: Request, res: Response) => {
     {
       onResponse(mres: MqttResponse) {
         // todo: get status from response
-        res.status(200).send(mres);
+        res.status(200).send(mres.data);
       },
       onServiceError(msg: string) {
         res.status(500).send(msg);
@@ -357,7 +357,7 @@ app.post("/slots", authMiddleware, (req: Request, res: Response) => {
     {
       onResponse(mres: MqttResponse) {
         // todo: get status from response
-        res.status(200).send(mres);
+        res.status(200).send(mres.data);
       },
       onServiceError(msg: string) {
         res.status(500).send(msg);
@@ -390,7 +390,7 @@ app.delete("/slots", authMiddleware, (req: Request, res: Response) => {
     {
       onResponse(mres: MqttResponse) {
         // todo: get status from response
-        res.status(200).send(mres);
+        res.status(200).send(mres.data);
       },
       onServiceError(msg: string) {
         res.status(500).send(msg);
@@ -423,7 +423,7 @@ app.patch("/slots", authMiddleware, (req: Request, res: Response) => {
     {
       onResponse(mres: MqttResponse) {
         // todo: get status from response
-        res.status(200).send(mres);
+        res.status(200).send(mres.data);
       },
       onServiceError(msg: string) {
         res.status(500).send(msg);
@@ -452,17 +452,15 @@ app.post("/auth/login", (req: Request, res: Response) => {
   }
   broker.publishToService(
     ServiceType.Accounts,
-    "accounts/login",
+    "login",
     {
-      data: {
-        personnummer: req.body.personnummer,
-        password: req.body.password,
-      },
+      personnummer: req.body.personnummer,
+      password: req.body.password,
     },
     {
       onResponse(mres: MqttResponse) {
         // todo: get status from response
-        res.status(200).send(mres);
+        res.status(200).send(mres.data);
       },
       onServiceError(msg: string) {
         res.status(500).send(msg);
@@ -486,19 +484,17 @@ app.post("/auth/register", (req: Request, res: Response) => {
   }
   broker.publishToService(
     ServiceType.Accounts,
-    "accounts/register",
+    "register",
     {
-      data: {
-        name: req.body.name,
-        email: req.body.email,
-        personnummer: req.body.personnummer,
-        passwordHash: req.body.passwordHash,
-      },
+      name: req.body.name,
+      email: req.body.email,
+      personnummer: req.body.personnummer,
+      passwordHash: req.body.passwordHash,
     },
     {
       onResponse(mres: MqttResponse) {
         // todo: get status from response
-        res.status(200).send(mres);
+        res.status(200).send(mres.data);
       },
       onServiceError(msg: string) {
         res.status(500).send(msg);
