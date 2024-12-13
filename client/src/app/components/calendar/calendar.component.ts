@@ -3,45 +3,48 @@ import {
   EventEmitter,
   Input,
   Output,
-  OnInit,
+  OnChanges,
   SimpleChanges,
-} from "@angular/core";
-import { MatIconModule } from "@angular/material/icon";
-import { MatButtonModule } from "@angular/material/button";
-import { MatToolbarModule } from "@angular/material/toolbar";
-import { CalendarSlot, CalendarSlots } from "./calendar.slots.interface";
+} from '@angular/core';
+import { MatIconModule } from '@angular/material/icon';
+import { MatButtonModule } from '@angular/material/button';
+import { MatToolbarModule } from '@angular/material/toolbar';
+import { CalendarSlot, CalendarSlots } from './calendar.slots.interface';
+import { getToken } from '../../views/authentication/guard';
 
 @Component({
-  selector: "calendar",
-  templateUrl: "./calendar.component.html",
-  styleUrl: "./calendar.component.css",
+  selector: 'calendar',
+  templateUrl: './calendar.component.html',
+  styleUrl: './calendar.component.css',
   imports: [MatToolbarModule, MatButtonModule, MatIconModule],
 })
-export class CalendarComponent implements OnInit {
+export class CalendarComponent implements OnChanges {
   private static readonly DAYS_PER_WEEK: number = 5;
 
   @Output() openEvent = new EventEmitter<CalendarSlot>();
   @Input() slots!: Array<CalendarSlot>;
 
   private readonly startDate: Date;
-  readonly today: Date;
+  private slotsMap: Map<number, Array<CalendarSlot>>;
 
-  hours: Array<number>;
-  activeSlots: Array<CalendarSlots>;
-  month!: string;
-  week!: string;
-  year!: number;
+  protected readonly today: Date;
+
+  protected activeSlots!: Array<CalendarSlots>;
+  protected hours: Array<number>;
+  protected month!: string;
+  protected week!: string;
+  protected year!: number;
 
   constructor() {
+    this.slotsMap = new Map();
+
     this.today = new Date();
     this.hours = Array.from({ length: 12 }, (_, a) => a + 8);
-    this.activeSlots = new Array(CalendarComponent.DAYS_PER_WEEK);
 
     let day = this.today.getDay();
     let diff = this.today.getDate() - day + (day == 0 ? -6 : 1); // americans...
 
     this.startDate = new Date();
-
     this.startDate.setDate(diff);
     this.startDate.setHours(0);
     this.startDate.setMinutes(0);
@@ -50,16 +53,42 @@ export class CalendarComponent implements OnInit {
   }
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes["slots"]) {
-      this.updateCalendarDataFor(this.startDate);
+    if (changes['slots']) {
+      this.slotsMap.clear();
+
+      for (const slot of this.slots) {
+        if (
+          !(
+            slot.startTime.getUTCHours() < this.hours[0] - 1 || // Sweden is UTC + 1
+            slot.endTime.getUTCHours() >= this.hours[this.hours.length - 1]
+          )
+        ) {
+          const date: Date = new Date(slot.startTime);
+
+          date.setDate(slot.startTime.getDate());
+          date.setHours(0);
+          date.setMinutes(0);
+          date.setSeconds(0);
+          date.setMilliseconds(0);
+
+          let daySlots: Array<CalendarSlot> | undefined =
+            this.slotsMap.get(date.getTime()) || [];
+
+          daySlots.push(slot);
+          this.slotsMap.set(date.getTime(), daySlots);
+        }
+      }
+
+      this.updateCalendarDataFor();
     }
   }
 
-  ngOnInit(): void {
-    // this.updateCalendarDataFor(this.startDate);
-  }
+  private updateCalendarDataFor(startDate?: Date | null | undefined) {
+    if (!startDate) {
+      startDate = this.startDate;
+    }
 
-  private updateCalendarDataFor(startDate: Date) {
+    this.activeSlots = new Array(CalendarComponent.DAYS_PER_WEEK);
     for (let index = 0; index < CalendarComponent.DAYS_PER_WEEK; index++) {
       const date: Date = new Date(startDate);
 
@@ -69,29 +98,18 @@ export class CalendarComponent implements OnInit {
       date.setSeconds(0);
       date.setMilliseconds(0);
 
-      this.activeSlots[index] = { date: date, events: [] };
+      this.activeSlots[index] = {
+        date: date,
+        events: this.slotsMap.get(date.getTime()) || [],
+      };
     }
 
-    for (const slot of this.slots) {
-      if (
-        !(
-          slot.endTime < this.activeSlots[0].date ||
-          slot.startTime > this.activeSlots[CalendarComponent.DAYS_PER_WEEK - 1].date
-        )
-      ) {
-        for (const slots of this.activeSlots)
-          if (slot.startTime.getDate() == slots.date.getDate()) {
-            slots.events.push(slot);
-          }
-      }
-    }
-
-    let startMonth = this.activeSlots[0].date.toLocaleString("default", {
-      month: "long",
+    let startMonth = this.activeSlots[0].date.toLocaleString('default', {
+      month: 'long',
     });
     let endMonth = this.activeSlots[
       CalendarComponent.DAYS_PER_WEEK - 1
-    ].date.toLocaleString("default", { month: "long" });
+    ].date.toLocaleString('default', { month: 'long' });
 
     if (startMonth == endMonth) {
       this.month = startMonth;
@@ -100,7 +118,7 @@ export class CalendarComponent implements OnInit {
     } else {
       this.month =
         startMonth.substring(0, Math.min(startMonth.length, 3)) +
-        " - " +
+        ' - ' +
         endMonth.substring(0, Math.min(endMonth.length, 3));
 
       const startWeek: string = this.getWeekDay(this.activeSlots[0].date);
@@ -112,9 +130,11 @@ export class CalendarComponent implements OnInit {
         this.week = startWeek;
         this.year = this.activeSlots[0].date.getFullYear();
       } else {
-        this.week = startWeek + " - " + endWeek;
+        this.week = startWeek + ' - ' + endWeek;
         this.year =
-          this.activeSlots[CalendarComponent.DAYS_PER_WEEK - 1].date.getFullYear();
+          this.activeSlots[
+            CalendarComponent.DAYS_PER_WEEK - 1
+          ].date.getFullYear();
       }
     }
   }
@@ -146,7 +166,7 @@ export class CalendarComponent implements OnInit {
     date.setSeconds(0);
     date.setMilliseconds(0);
 
-    return this.normalizedSince(date, slot.startTime) + "%";
+    return this.normalizedSince(date, slot.startTime) + '%';
   }
 
   public calculateBottom(slot: CalendarSlot) {
@@ -157,10 +177,10 @@ export class CalendarComponent implements OnInit {
     date.setSeconds(0);
     date.setMilliseconds(0);
 
-    return this.normalizedSince(slot.endTime, date) + "%";
+    return this.normalizedSince(slot.endTime, date) + '%';
   }
 
-  public goBack() {
+  protected goBack() {
     const newStart: Date = new Date(this.activeSlots[0].date);
     newStart.setDate(this.activeSlots[0].date.getDate() - 7);
 
@@ -171,10 +191,14 @@ export class CalendarComponent implements OnInit {
     this.updateCalendarDataFor(newStart);
   }
 
-  public goForward() {
+  protected goForward() {
     const newStart: Date = new Date(this.activeSlots[0].date);
     newStart.setDate(this.activeSlots[0].date.getDate() + 7);
 
     this.updateCalendarDataFor(newStart);
+  }
+
+  protected canModify(slot: CalendarSlot) {
+    return !slot.bookedBy || slot.bookedBy == getToken(true).userId;
   }
 }

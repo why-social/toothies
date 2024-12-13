@@ -73,23 +73,30 @@
                       >
                         <div
                           class="event-container"
-                          [class.disabled]="slot.isBooked"
+                          [class.disabled]="slot.bookedBy"
+                          [class.allows-editing]="canModify(slot)"
                           (click)="openEvent.emit(slot)"
                         >
-                          <div class="interval">
-                            {{
-                              slot.startTime.toLocaleTimeString([], {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                                hour12: false,
-                              }) +
-                                " - " +
-                                slot.endTime.toLocaleTimeString([], {
+                          <div class="slot-info">
+                            <div class="interval">
+                              {{
+                                slot.startTime.toLocaleTimeString([], {
                                   hour: "2-digit",
                                   minute: "2-digit",
                                   hour12: false,
-                                })
-                            }}
+                                }) +
+                                  " - " +
+                                  slot.endTime.toLocaleTimeString([], {
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                    hour12: false,
+                                  })
+                              }}
+                            </div>
+
+                            @if (slot.bookedBy && canModify(slot)) {
+                              <span class="your-booking">Your booking</span>
+                            }
                           </div>
                         </div>
                       </div>
