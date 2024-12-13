@@ -60,7 +60,15 @@ export class Booking {
 
   private fetchSlots() {
     this.http
-      .get<any>(`http://localhost:3000/appointments?doctorId=${this.doctorId}`)
+      .get<any>(
+        `http://localhost:3000/appointments?doctorId=${this.doctorId}`,
+        {
+          headers: new HttpHeaders().set(
+            'Authorization',
+            `Bearer ${getToken()}`,
+          ),
+        },
+      )
       .subscribe({
         next: (data) => {
           this.doctorName = data.doctor.name;

@@ -1,6 +1,6 @@
 import { Component, inject } from '@angular/core';
 import { MatTabGroup, MatTab } from '@angular/material/tabs';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Doctors } from './doctors/doctors';
 import { Clinics } from './clinics/clinics';
 import { ClinicMap } from './map/map';
@@ -88,9 +88,12 @@ export class Home {
 
     if (userID) {
       this.http
-        .get<
-          Array<any>
-        >(`http://localhost:3000/appointments/user?userId=${userID}`)
+        .get<Array<any>>(`http://localhost:3000/appointments/user`, {
+          headers: new HttpHeaders().set(
+            'Authorization',
+            `Bearer ${getToken()}`,
+          ),
+        })
         .subscribe({
           next: (data) => {
             console.log(data);
