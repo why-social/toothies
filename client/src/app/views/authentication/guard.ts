@@ -20,18 +20,26 @@ export const NegatedAuthGuard: CanActivateFn = (): boolean => {
   return true;
 };
 
-function isLoggedIn(): boolean {
+export function getToken(decode?: boolean): any {
   const token = localStorage.getItem('token');
 
-  if (token) {
-    try {
-      const decoded = jwtDecode(token);
-
-      return !!decoded?.exp && new Date().getTime() / 1000 < decoded.exp;
-    } catch (error) {
-      return false;
+  if (decode) {
+    if (token) {
+      try {
+        return jwtDecode(token);
+      } catch (error) {
+        return null;
+      }
     }
+
+    return null;
   }
 
-  return false;
+  return token;
+}
+
+function isLoggedIn(): boolean {
+  const exp = getToken(true)?.exp;
+
+  return exp && new Date().getTime() / 1000 < exp;
 }

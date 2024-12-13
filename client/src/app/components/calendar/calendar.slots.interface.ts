@@ -9,5 +9,5 @@ export interface CalendarSlot {
   doctor: Doctor;
   startTime: Date;
   endTime: Date;
-  isBooked: boolean;
+  bookedBy: string | null;
 }

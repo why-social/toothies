@@ -6,3 +6,18 @@ export interface Doctor {
   type: string;
   clinic: Clinic;
 }
+
+export interface Doctor {
+  name: string;
+  _id: string;
+  type: string;
+}
+
+export interface Doctor {
+  name: string;
+  _id: string;
+}
+
+export interface Doctor {
+  _id: string;
+}
