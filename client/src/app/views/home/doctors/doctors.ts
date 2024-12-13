@@ -1,35 +1,16 @@
-import { Component, inject } from '@angular/core';
-import { DoctorComponent } from './doctor/doctor';
-import { MatPaginator } from '@angular/material/paginator';
-import { HttpClient } from '@angular/common/http';
-import { Doctor, PopulatedDoctor } from '../../../types/doctor';
+import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { DoctorComponent } from '../../../components/doctor/doctor.component';
+import { Doctor } from '../../../components/doctor/doctor.interface';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatButtonModule } from '@angular/material/button';
 
 @Component({
   selector: 'doctors',
   templateUrl: './doctors.html',
   styleUrl: './doctors.css',
-  imports: [DoctorComponent, MatPaginator],
+  imports: [DoctorComponent, MatProgressBarModule, MatButtonModule],
 })
 export class Doctors {
-  private http = inject(HttpClient);
-
-  doctors: Array<Doctor> | null = null;
-
-  constructor() {
-    this.http.get<Array<any>>(`http://localhost:3000/doctors`).subscribe({
-      next: (data) => {
-        this.doctors = data.map(
-          (it) =>
-            ({
-              name: it.name,
-              doctorId: it._id,
-              type: it.type,
-            }) as Doctor,
-        );
-      },
-      error: (error) => {
-        console.error('Error fetching doctors: ', error);
-      },
-    });
-  }
+  @Output() reloadEvent = new EventEmitter();
+  @Input() doctors: Array<Doctor> | null | undefined;
 }

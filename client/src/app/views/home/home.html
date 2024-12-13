@@ -1,7 +1,23 @@
-<mat-tab-group>
+@if (bookings && bookings.length > 0) {
+  <div class="bookings">
+    <h2>Bookings:</h2>
+
+    <div class="scroller">
+      @for (booking of bookings; track $index) {
+        <booking [booking]="booking" (cancelEvent)="removeBooking(booking)" />
+      }
+    </div>
+  </div>
+}
+
+<mat-tab-group mat-stretch-tabs="true" mat-align-tabs="center" preserveContent>
   <mat-tab label="Doctors">
-	<doctors/>
+    <doctors [doctors]="doctors" (reloadEvent)="fetchDoctors()" />
   </mat-tab>
-  <mat-tab label="Clinics"> </mat-tab>
-  <mat-tab label="Map"> </mat-tab>
+  <mat-tab label="Clinics">
+    <clinics [clinics]="clinics" (reloadEvent)="fetchClinics()" />
+  </mat-tab>
+  <mat-tab label="Map">
+    <clinic-map [clinics]="clinics" />
+  </mat-tab>
 </mat-tab-group>

@@ -1,6 +1,16 @@
-<div class="container">
-  <calendar
-    [slots]="slots"
-    (openEvent)="openDialog($event)"
-  />
-</div>
+@if (doctorName && clinicName) {
+  <div class="details">
+    <h2>{{ doctorName }}</h2>
+
+    <div class="location">
+      <mat-icon class="material-icons-outlined"> location_on </mat-icon>
+      {{ clinicName }}
+    </div>
+  </div>
+
+  <div class="container">
+    <calendar [slots]="slots" (openEvent)="openDialog($event)" />
+  </div>
+} @else {
+  <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+}

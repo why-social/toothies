@@ -1,0 +1,41 @@
+@if (!logging) {
+  <div class="container">
+    <div class="section">
+      <div class="buttons login">
+        <span>Don't have an account?</span>
+        <button mat-stroked-button (click)="router.navigateByUrl('/register')">
+          Register
+        </button>
+      </div>
+    </div>
+    <form [formGroup]="form">
+      <ng-template matStepLabel>Fill out your personnummer</ng-template>
+      <div class="section">
+        <mat-form-field>
+          <mat-label>Personnummer</mat-label>
+          <input
+            matInput
+            formControlName="personnummer"
+            placeholder="YYYYMMDD-0000"
+            required
+          />
+        </mat-form-field>
+        <mat-form-field>
+          <mat-label>Password</mat-label>
+          <input
+            matInput
+            type="password"
+            formControlName="password"
+            placeholder="Password"
+            required
+          />
+        </mat-form-field>
+        <div class="buttons">
+          <button mat-flat-button (click)="submit()">Log in</button>
+        </div>
+      </div>
+    </form>
+  </div>
+} @else {
+  <mat-spinner></mat-spinner>
+}

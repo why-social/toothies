@@ -1,11 +1,11 @@
 import { Command } from 'commander';
 import chalk from "chalk";
-import axios from "axios";
+import { makeRequest, getDoctorId } from '../../utils/utils.js';
 
 const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
 const timeRegex = /^\d{2}:\d{2}$/;
 
-const cancelAppointment = new Command("delete")
+const cancelAppointment = new Command("cancel")
 .description(`Cancel an appointment with specified date and time`)
 .requiredOption("-d, --date <date>", `Date of the appointment in the format YYYY-MM-DD ${chalk.dim("(required)")}`)
 .requiredOption("-s, --startTime <time>", `Start time of the appointment in the format HH:MM ${chalk.dim("(required)")}`)
@@ -27,20 +27,10 @@ const cancelAppointment = new Command("delete")
 	startDate = startDate.getTime();
 
 	// Make an api call to delete an appointment and handle the response
-	try {
-		const res = await axios.delete(`${process.env.API_URL}/appointments`,
-		{ data: { startTime: startDate }, headers: 
-			{ Authorization: `Bearer ${process.env.ACCESS_TOKEN}` }
-		});
-		if(res.data?.message) console.log(res.data.message);
-	} catch (error) {
-		if (error.response && error.response.data) {
-			console.error("Error deleting the appointment:", error.response.data);
-		} else {
-			console.error("Error deleting the appointment:", error.message);
-		}
-	}
+	const doctorId = await getDoctorId();
 
+	const res = await makeRequest('delete', `${process.env.API_URL}/appointments`, "Error deleting the appointment:", { startTime: startDate, doctorId: doctorId});
+	if(res.data?.message) console.log(res.data.message);
 });
 
 export default cancelAppointment;

@@ -1,0 +1,19 @@
+* {
+	color: var(--mat-sys-on-surface);
+}
+
+mat-card-content {
+	box-sizing: border-box;
+}
+
+mat-card-actions {
+	flex-direction: row-reverse;
+}
+
+.location {
+	display: flex;
+	gap: 5px;
+	padding-top: 10px;
+	margin-left: -3px;
+	align-items: center;
+}
