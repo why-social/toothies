@@ -229,6 +229,21 @@ app.get("/appointments", (req: Request, res: Response) => {
 });
 
 /**
+ * Get upcoming booked appointments of a user
+ * Request Format:
+ * 	Endpoint: /appointments/user?userId
+ */
+app.get("/appointments/user", (req: Request, res: Response) => {
+	if(!req.query?.userId){
+		res.status(400).send("No id specified");
+		return;
+	}
+	mqttPublishWithResponse(req, res, "appointments", "appointments/getUser", {
+		userId: req.query.userId
+	});
+})
+
+/**
  *  Book a slot
  *  Get appointment slots of a doctor, with auth and populated with patient names
  *  Request Format:

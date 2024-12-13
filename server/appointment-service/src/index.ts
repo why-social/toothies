@@ -155,14 +155,16 @@ mqttClient.on("message", async (topic, message) => {
       }
     }
     case "appointments": {
-      if (!action || !payload.doctorId) {
+      if (!action) {
         console.error("Invalid query:");
         console.log(payload);
         break;
       }
 
-      payload.doctorId = new ObjectId(payload.doctorId);
-      payload.userId = new ObjectId(payload.userId);
+	  if(payload.doctorId)
+      	payload.doctorId = new ObjectId(payload.doctorId);
+	  if(payload.userId)
+      	payload.userId = new ObjectId(payload.userId);
 
       await handleAppointmentsRequest(payload);
       break;
@@ -192,6 +194,11 @@ async function handleAppointmentsRequest(payload: any) {
 
   switch (payload.action) {
     case "get":
+		if (!payload.doctorId) {
+			console.error("Invalid query:");
+			console.log(payload);
+			break;
+		}
       const doctorSlots = await slots
         .find(
           { doctorId: payload.doctorId },
@@ -227,7 +234,7 @@ async function handleAppointmentsRequest(payload: any) {
       break;
 
     case "book": // book a slot
-	  if(!payload.startTime) {
+	  if(!payload.startTime || !payload.doctorId) {
 		console.error("Invalid query:");
 		console.log(payload);
 		break;
@@ -286,7 +293,7 @@ async function handleAppointmentsRequest(payload: any) {
       break;
 
     case "cancel": // cancel a slot
-	  if(!payload.startTime) {
+	  if(!payload.startTime || !payload.doctorId) {
 		console.error("Invalid query:");
 		console.log(payload);
 		break;
@@ -356,15 +363,40 @@ async function handleAppointmentsRequest(payload: any) {
       break;
 	
 	case "getDocDate": // get all booked slots for a doctor on a specific day
+		if (!payload.doctorId) {
+			console.error("Invalid query:");
+			console.log(payload);
+			break;
+		}
 		getAppointmentsForDoctorOnDate(payload, responseTopic);
 		break;
 
 	case "getDocUpcoming":
+		if (!payload.doctorId) {
+			console.error("Invalid query:");
+			console.log(payload);
+			break;
+		}
 		getAppointmentsForDoctorUpcoming(payload, responseTopic);
 		break;
 	
 	case "getDocPatient":
+		if (!payload.doctorId) {
+			console.error("Invalid query:");
+			console.log(payload);
+			break;
+		}
 		getAppointmentsForDoctorPerPatient(payload, responseTopic);
+		break;
+
+	case "getUser":
+		if (!payload.userId) {
+			console.error("Invalid query");
+			console.log(payload);
+			break;
+		}
+		getAppointmentsForUser(payload, responseTopic);
+		break;
 
     default:
       console.error("Invalid action");
@@ -687,6 +719,47 @@ async function getAppointmentsForDoctorPerPatient(payload: any, responseTopic: s
 
 	const res = JSON.stringify({
 		data: appointmentsWithNames
+	})
+
+	mqttClient.publish(responseTopic, res);
+}
+
+async function getAppointmentsForUser(payload: any, responseTopic: string){
+	const userId = new ObjectId(payload.userId);
+	const userAppointments = await slots.aggregate([
+		{
+			$match: {
+				bookedBy: userId,
+				startTime: {$gte: new Date()}
+			}
+		},
+		{
+			$lookup: {
+				from: "doctors",
+				localField: "doctorId",
+				foreignField: "_id",
+				as: "doctorName"
+			},
+		},
+		{
+			$unwind: "$doctorName"
+		},
+		{
+			$project: {
+				startTime: 1,
+				endTime: 1,
+				doctorId: 1,
+				bookedBy: 1,
+				doctorName: "$doctorName.name"
+			}
+		},
+		{
+			$sort: {startTime: 1}
+		}
+	]).toArray();
+
+	const res = JSON.stringify({
+		data: userAppointments
 	})
 
 	mqttClient.publish(responseTopic, res);
