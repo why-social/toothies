@@ -8,7 +8,7 @@ import {
   inject,
 } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
-import { PopulatedClinic } from '../../components/clinic/clinic.interface';
+import { Clinic } from '../../components/clinic/clinic.interface';
 import { HttpClient } from '@angular/common/http';
 import { DoctorComponent } from '../../components/doctor/doctor.component';
 import { LeafletUtil } from '../../types/leaflet.interface';
@@ -29,7 +29,7 @@ export class ClinicView implements AfterViewChecked, OnInit {
   protected router = inject(Router);
 
   @ViewChild('map') mapElement!: ElementRef;
-  @Input() clinic!: PopulatedClinic | null;
+  @Input() clinic!: Clinic | null;
   private marker!: Leaflet.Marker;
   private map!: Leaflet.Map;
 
@@ -67,7 +67,7 @@ export class ClinicView implements AfterViewChecked, OnInit {
                 _id: data._id,
                 location: data.location,
                 doctors: data.doctors,
-              } as PopulatedClinic;
+              } as Clinic;
 
               if (this.marker && this.map) {
                 this.marker.removeFrom(this.map);

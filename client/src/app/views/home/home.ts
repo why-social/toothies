@@ -36,6 +36,7 @@ export class Home {
                 name: it.name,
                 _id: it._id,
                 type: it.type,
+                clinic: it.clinic,
               }) as Doctor,
           );
       },

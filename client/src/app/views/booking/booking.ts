@@ -6,13 +6,14 @@ import { BookingDialogComponent } from '../../components/booking/dialog/booking.
 import { HttpClient } from '@angular/common/http';
 import { ActivatedRoute } from '@angular/router';
 import { MatIcon } from '@angular/material/icon';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { Socket } from 'ngx-socket-io';
 
 @Injectable({ providedIn: 'root' })
 @Component({
   templateUrl: './booking.html',
   styleUrl: './booking.css',
-  imports: [CalendarComponent, MatIcon],
+  imports: [CalendarComponent, MatIcon, MatProgressBarModule],
 })
 export class Booking {
   readonly dialog = inject(MatDialog);

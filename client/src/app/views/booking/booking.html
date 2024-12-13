@@ -11,4 +11,6 @@
   <div class="container">
     <calendar [slots]="slots" (openEvent)="openDialog($event)" />
   </div>
+} @else {
+  <mat-progress-bar mode="indeterminate"></mat-progress-bar>
 }
