@@ -4,6 +4,7 @@ import { HttpClient } from '@angular/common/http';
 import { Doctors } from './doctors/doctors';
 import { Clinics } from './clinics/clinics';
 import { ClinicMap } from './map/map';
+import { getToken } from '../authentication/guard';
 import { Clinic } from '../../components/clinic/clinic.interface';
 import { Doctor } from '../../components/doctor/doctor.interface';
 
@@ -15,11 +16,43 @@ import { Doctor } from '../../components/doctor/doctor.interface';
 export class Home {
   private http = inject(HttpClient);
 
-  clinics!: Array<Clinic>;
-  doctors!: Array<Doctor>;
+  clinics: Array<Clinic> | null | undefined;
+  doctors: Array<Doctor> | null | undefined;
 
   constructor() {
-    //get clinics
+    this.fetchDoctors();
+    this.fetchClinics();
+    this.fetchBookings();
+  }
+
+  protected fetchDoctors(): void {
+    this.doctors = undefined;
+
+    this.http.get<Array<any>>(`http://localhost:3000/doctors`).subscribe({
+      next: (data) => {
+        this.doctors = data
+          .filter((el) => el.name && el._id && el.type)
+          .map(
+            (it) =>
+              ({
+                name: it.name,
+                _id: it._id,
+                type: it.type,
+                clinic: it.clinic,
+              }) as Doctor,
+          );
+      },
+      error: (error) => {
+        this.doctors = null;
+
+        console.error('Error fetching doctors: ', error);
+      },
+    });
+  }
+
+  protected fetchClinics(): void {
+    this.clinics = undefined;
+
     this.http.get<Array<any>>(`http://localhost:3000/clinics`).subscribe({
       next: (data) => {
         this.clinics = data
@@ -43,27 +76,29 @@ export class Home {
           );
       },
       error: (error) => {
+        this.clinics = null;
+
         console.error('Error fetching clinics: ', error);
       },
     });
+  }
 
-    // get doctors
-    this.http.get<Array<any>>(`http://localhost:3000/doctors`).subscribe({
-      next: (data) => {
-        this.doctors = data
-          .filter((el) => el.name && el._id && el.type)
-          .map(
-            (it) =>
-              ({
-                name: it.name,
-                _id: it._id,
-                type: it.type,
-              }) as Doctor,
-          );
-      },
-      error: (error) => {
-        console.error('Error fetching doctors: ', error);
-      },
-    });
+  protected fetchBookings(): void {
+    const userID = getToken(true).userId;
+
+    if (userID) {
+      this.http
+        .get<
+          Array<any>
+        >(`http://localhost:3000/appointments/user?userId=${userID}`)
+        .subscribe({
+          next: (data) => {
+            console.log(data);
+          },
+          error: (error) => {
+            console.error('Error fetching bookings: ', error);
+          },
+        });
+    }
   }
 }
