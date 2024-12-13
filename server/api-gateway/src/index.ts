@@ -2,11 +2,12 @@ import { createServer } from "http";
 import { Server } from "socket.io";
 import express, { Express, Request, Response, NextFunction } from "express";
 import cors from "cors";
-import mqtt, { IClientOptions, IClientPublishOptions } from "mqtt";
-import { Service } from "./types/Service";
 import { ServicesList } from "./types/ServicesList";
 import { authMiddleware } from "./middleware/auth";
 import { createUserToken } from "./utils/utils";
+import { ServiceType } from "./types/ServiceType";
+import { MqttResponse } from "./services/MqttMessages";
+import { ServiceBroker } from "./services/ServiceBroker";
 
 const app: Express = express();
 const port: number = 3000;
@@ -15,79 +16,24 @@ const socket = new Server(httpServer, {
   cors: { origin: "*" },
 });
 
-const mqttOptions: IClientOptions = {
-  username: "service",
-  password: "Ilike2makewalks",
-};
-
-const heartbeatTopic = "heartbeat/+";
-const heartbeatRx = /^heartbeat\/(\w+)$/;
-
 app.use(cors());
 // Parse requests of content-type 'application/json'
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
-const mqttClient = mqtt.connect(
-  "tls://0fc2e0e6e10649f790f059e77c606dfe.s1.eu.hivemq.cloud:8883",
-  mqttOptions
-);
+const broker = new ServiceBroker();
 
-let serviceMap: Map<string, ServicesList> = new Map(); // TODO enum instead of string?
-
-mqttClient.on("error", (error) => {
-  console.error("Mqtt error:", error);
-  mqttClient.end();
+broker.subscribe("heartbeat/+", (topic: string, message: Buffer) => {
+  const match = /^heartbeat\/(\w+)$/.exec(topic);
+  if (match && match[1]) {
+    const serviceType = match[1];
+    broker.fromHeartbeat(serviceType, message.toString());
+  }
 });
 
-mqttClient.on("connect", () => {
-  console.log("Connected to MQTT broker");
-
-  // Subscribe to heartbeat topic
-  mqttClient.subscribe(heartbeatTopic, (err) => {
-    if (err) return console.error("Failed to subscribe to heartbeat topic");
-
-    console.log(`Subscribed to ${heartbeatTopic}`);
-  });
-
-  // Subscrive to live calendar updates
-  mqttClient.subscribe("appointments/+", (err) => {
-    if (err) return console.error("Failed to subscribe to heartbeat topic");
-
-    console.log("Subscribed to appointments/+");
-  });
-
-  // Handle heartbeat messages, if a service is not in the list, add it
-  mqttClient.on("message", (topic, message) => {
-    const match = heartbeatRx.exec(topic);
-    if (match && match[1]) {
-      const serviceType = match[1];
-      const msgService: Service = Service.fromJSON(message);
-      const serviceId = msgService.getServiceId();
-      const containerName = msgService.getContainerName();
-
-      if (!serviceMap.has(serviceType)) {
-        serviceMap.set(serviceType, new ServicesList(mqttClient));
-      }
-
-      let servicesList = serviceMap.get(serviceType);
-      if (!servicesList) {
-        // This cannot possibly happen, but TS forced my hand
-        console.error("If you see this, something terrible happened");
-        return;
-      }
-
-      if (!servicesList.hasService(serviceId)) {
-        servicesList.addService(msgService);
-      } else {
-        servicesList.updateHeartbeat(serviceId);
-      }
-    }
-  });
-});
-
+// Subscrive to live calendar updates
 // forward live update to corresponding socket namespace
-mqttClient.on("message", (topic, message) => {
+broker.subscribe("appointments/+", (topic: string, message: Buffer) => {
   const match = /^appointments\/(\w+)$/g.exec(topic);
   if (match && match.length == 2) {
     console.log(`Live update: [${topic}]: ${message.toString()}`);
@@ -96,88 +42,6 @@ mqttClient.on("message", (topic, message) => {
   }
 });
 
-function mqttPublishWithResponse(
-  req: Request,
-  res: Response,
-  service: string,
-  topic: string,
-  message?: Object
-) {
-  const options: IClientPublishOptions = { qos: 2 };
-  const timeoutDuration = 3000;
-  let retries = 0;
-  const servicesList = serviceMap.get(service);
-  if (!servicesList) {
-    res.status(500).send("Error: No available services");
-    return;
-  }
-  const maxRetries = servicesList.getServicesCount();
-
-  const reqTimestamp = Date.now(); // timestamp to identify req and res
-  const requestMessage = message
-    ? JSON.stringify({
-        ...message,
-        timestamp: reqTimestamp,
-      })
-    : JSON.stringify({ timestamp: reqTimestamp });
-
-  const publishRequest = (serviceId: string) => {
-    const publishTopic = `${serviceId}/${topic}`;
-    const responseTopic = `${serviceId}/res/${reqTimestamp}`;
-
-    // handler for receiving a response from a service.
-    // expects a response message on the topic '${serviceId}/res/${reqTimestamp}'
-    const responseHandler = (topic: string, message: Buffer) => {
-      if (topic === responseTopic) {
-        clearTimeout(timeout);
-        mqttClient.removeListener("message", responseHandler);
-        mqttClient.unsubscribe(responseTopic);
-        console.log(`Received response: ${message.toString()}\n`);
-        return res.status(200).send(message.toString());
-      }
-    };
-
-    // subscribe and attach response handler
-    mqttClient.subscribe(responseTopic);
-    mqttClient.on("message", responseHandler);
-
-    mqttClient.publish(publishTopic, requestMessage, options, (err) => {
-      if (err) return res.status(500).send("Failed to publish request message");
-      console.log(`Published request: ${requestMessage} to ${publishTopic}`);
-    });
-
-    const timeout = setTimeout(() => {
-      console.log(
-        `Request to service ${serviceId} timed out. Redirecting to another service...`
-      );
-      mqttClient.removeListener("message", responseHandler);
-      mqttClient.unsubscribe(responseTopic);
-      retries++;
-      if (retries < maxRetries) {
-        const newServiceId = servicesList
-          .getRoundRobinService()
-          ?.getServiceId();
-        if (newServiceId) {
-          publishRequest(newServiceId);
-        } else {
-          res.status(500).send("No available services to handle the request");
-          console.log("No available services to handle the request\n");
-        }
-      } else {
-        res.status(500).send("Request timed out after multiple retries");
-        console.log("Request timed out after multiple retries\n");
-      }
-    }, timeoutDuration);
-  };
-  const initialServiceId = servicesList.getRoundRobinService()?.getServiceId();
-  if (initialServiceId) {
-    publishRequest(initialServiceId);
-  } else {
-    res.status(500).send("No available services to handle the request");
-    console.log("No available services to handle the request\n");
-  }
-}
-
 // Clinic enpoints
 /**
  *  Get all clinics
@@ -185,7 +49,20 @@ function mqttPublishWithResponse(
  *      Endpoint: /clinics
  */
 app.get("/clinics", (req: Request, res: Response) => {
-  mqttPublishWithResponse(req, res, "appointments", "clinics/get");
+  broker.publishToService(
+    ServiceType.Appointments,
+    "clinics/get",
+    {},
+    {
+      onResponse(mres: MqttResponse) {
+        // todo: get status from response
+        res.status(200).send(mres);
+      },
+      onServiceError(msg: string) {
+        res.status(500).send(msg);
+      },
+    },
+  );
 });
 
 /**
@@ -196,10 +73,23 @@ app.get("/clinics", (req: Request, res: Response) => {
 app.get("/clinics/:id", (req: Request, res: Response) => {
   if (!req.params.id) {
     res.status(400).send("No id");
+    return;
   }
-  mqttPublishWithResponse(req, res, "appointments", "clinics/get", {
-    clinicId: req.params.id,
-  });
+
+  broker.publishToService(
+    ServiceType.Appointments,
+    "clinics/get",
+    { clinicId: req.params.id },
+    {
+      onResponse(mres: MqttResponse) {
+        // todo: get status from response
+        res.status(200).send(mres);
+      },
+      onServiceError(msg: string) {
+        res.status(500).send(msg);
+      },
+    },
+  );
 });
 
 /**
@@ -208,7 +98,20 @@ app.get("/clinics/:id", (req: Request, res: Response) => {
  *      Endpoint: /doctors
  */
 app.get("/doctors", (req: Request, res: Response) => {
-  mqttPublishWithResponse(req, res, "appointments", "doctors/get");
+  broker.publishToService(
+    ServiceType.Appointments,
+    "doctors/get",
+    {},
+    {
+      onResponse(mres: MqttResponse) {
+        // todo: get status from response
+        res.status(200).send(mres);
+      },
+      onServiceError(msg: string) {
+        res.status(500).send(msg);
+      },
+    },
+  );
 });
 
 // Booking endpoints
@@ -228,9 +131,20 @@ app.get("/appointments", authMiddleware, (req: Request, res: Response) => {
     return;
   }
 
-  mqttPublishWithResponse(req, res, "appointments", "appointments/get", {
-    doctorId: req.query.doctorId,
-  });
+  broker.publishToService(
+    ServiceType.Appointments,
+    "appointments/get",
+    { doctorId: req.query.doctorId },
+    {
+      onResponse(mres: MqttResponse) {
+        // todo: get status from response
+        res.status(200).send(mres);
+      },
+      onServiceError(msg: string) {
+        res.status(500).send(msg);
+      },
+    },
+  );
 });
 
 /**
@@ -244,9 +158,20 @@ app.get("/appointments/user", authMiddleware, (req: Request, res: Response) => {
     return;
   }
 
-  mqttPublishWithResponse(req, res, "appointments", "appointments/getUser", {
-    userId: req.user,
-  });
+  broker.publishToService(
+    ServiceType.Appointments,
+    "appointments/getUser",
+    { userId: req.user },
+    {
+      onResponse(mres: MqttResponse) {
+        // todo: get status from response
+        res.status(200).send(mres);
+      },
+      onServiceError(msg: string) {
+        res.status(500).send(msg);
+      },
+    },
+  );
 });
 
 /**
@@ -266,31 +191,39 @@ app.get(
     }
 
     if (req.query.date) {
-      mqttPublishWithResponse(
-        req,
-        res,
-        "appointments",
+      broker.publishToService(
+        ServiceType.Appointments,
         "appointments/getDocDate",
+        { doctorId: req.user, date: req.query.date },
         {
-          doctorId: req.user,
-          date: req.query.date,
-        }
+          onResponse(mres: MqttResponse) {
+            // todo: get status from response
+            res.status(200).send(mres);
+          },
+          onServiceError(msg: string) {
+            res.status(500).send(msg);
+          },
+        },
       );
     } else if (req.query.patientName) {
-      mqttPublishWithResponse(
-        req,
-        res,
-        "appointments",
+      broker.publishToService(
+        ServiceType.Appointments,
         "appointments/getDocPatient",
+        { doctorId: req.user, patientName: req.query.patientName },
         {
-          doctorId: req.user,
-          patientName: req.query.patientName,
-        }
+          onResponse(mres: MqttResponse) {
+            // todo: get status from response
+            res.status(200).send(mres);
+          },
+          onServiceError(msg: string) {
+            res.status(500).send(msg);
+          },
+        },
       );
     } else {
       res.status(400).send("Invalid request");
     }
-  }
+  },
 );
 
 /**
@@ -307,16 +240,21 @@ app.get(
       return;
     }
 
-    mqttPublishWithResponse(
-      req,
-      res,
-      "appointments",
+    broker.publishToService(
+      ServiceType.Appointments,
       "appointments/getDocUpcoming",
+      { doctorId: req.user },
       {
-        doctorId: req.user,
-      }
+        onResponse(mres: MqttResponse) {
+          // todo: get status from response
+          res.status(200).send(mres);
+        },
+        onServiceError(msg: string) {
+          res.status(500).send(msg);
+        },
+      },
     );
-  }
+  },
 );
 
 /**
@@ -337,11 +275,24 @@ app.post("/appointments", authMiddleware, (req: Request, res: Response) => {
     return;
   }
 
-  mqttPublishWithResponse(req, res, "appointments", "appointments/book", {
-    userId: req.user,
-    doctorId: req.body.doctorId,
-    startTime: req.body.startTime,
-  });
+  broker.publishToService(
+    ServiceType.Appointments,
+    "appointments/book",
+    {
+      userId: req.user,
+      doctorId: req.body.doctorId,
+      startTime: req.body.startTime,
+    },
+    {
+      onResponse(mres: MqttResponse) {
+        // todo: get status from response
+        res.status(200).send(mres);
+      },
+      onServiceError(msg: string) {
+        res.status(500).send(msg);
+      },
+    },
+  );
 });
 
 /**
@@ -362,11 +313,24 @@ app.delete("/appointments", authMiddleware, (req: Request, res: Response) => {
     return;
   }
 
-  mqttPublishWithResponse(req, res, "appointments", "appointments/cancel", {
-    userId: req.user,
-    doctorId: req.body.doctorId,
-    startTime: req.body.startTime,
-  });
+  broker.publishToService(
+    ServiceType.Appointments,
+    "appointments/cancel",
+    {
+      userId: req.user,
+      doctorId: req.body.doctorId,
+      startTime: req.body.startTime,
+    },
+    {
+      onResponse(mres: MqttResponse) {
+        // todo: get status from response
+        res.status(200).send(mres);
+      },
+      onServiceError(msg: string) {
+        res.status(500).send(msg);
+      },
+    },
+  );
 });
 
 /**
@@ -383,10 +347,23 @@ app.post("/slots", authMiddleware, (req: Request, res: Response) => {
   }
 
   // Publish the request to the MQTT broker
-  mqttPublishWithResponse(req, res, "appointments", "slots/create", {
-    doctorId: req.user,
-    body: req.body,
-  });
+  broker.publishToService(
+    ServiceType.Appointments,
+    "slots/create",
+    {
+      doctorId: req.user,
+      body: req.body,
+    },
+    {
+      onResponse(mres: MqttResponse) {
+        // todo: get status from response
+        res.status(200).send(mres);
+      },
+      onServiceError(msg: string) {
+        res.status(500).send(msg);
+      },
+    },
+  );
 });
 
 /**
@@ -403,10 +380,23 @@ app.delete("/slots", authMiddleware, (req: Request, res: Response) => {
   }
 
   // Publish the request to the MQTT broker
-  mqttPublishWithResponse(req, res, "appointments", "slots/delete", {
-    doctorId: req.user,
-    body: req.body,
-  });
+  broker.publishToService(
+    ServiceType.Appointments,
+    "slots/delete",
+    {
+      doctorId: req.user,
+      body: req.body,
+    },
+    {
+      onResponse(mres: MqttResponse) {
+        // todo: get status from response
+        res.status(200).send(mres);
+      },
+      onServiceError(msg: string) {
+        res.status(500).send(msg);
+      },
+    },
+  );
 });
 
 /**
@@ -423,10 +413,23 @@ app.patch("/slots", authMiddleware, (req: Request, res: Response) => {
   }
 
   // Publish the request to the MQTT broker
-  mqttPublishWithResponse(req, res, "appointments", "slots/edit", {
-    doctorId: req.user,
-    body: req.body,
-  });
+  broker.publishToService(
+    ServiceType.Appointments,
+    "slots/edit",
+    {
+      doctorId: req.user,
+      body: req.body,
+    },
+    {
+      onResponse(mres: MqttResponse) {
+        // todo: get status from response
+        res.status(200).send(mres);
+      },
+      onServiceError(msg: string) {
+        res.status(500).send(msg);
+      },
+    },
+  );
 });
 
 app.post("/generateToken", (req: Request, res: Response) => {
@@ -447,12 +450,25 @@ app.post("/auth/login", (req: Request, res: Response) => {
     res.status(400).send("Error: Invalid request");
     return;
   }
-  mqttPublishWithResponse(req, res, "accounts", "accounts/login", {
-    data: {
-      personnummer: req.body.personnummer,
-      password: req.body.password,
+  broker.publishToService(
+    ServiceType.Accounts,
+    "accounts/login",
+    {
+      data: {
+        personnummer: req.body.personnummer,
+        password: req.body.password,
+      },
     },
-  });
+    {
+      onResponse(mres: MqttResponse) {
+        // todo: get status from response
+        res.status(200).send(mres);
+      },
+      onServiceError(msg: string) {
+        res.status(500).send(msg);
+      },
+    },
+  );
 });
 
 /*
@@ -468,14 +484,27 @@ app.post("/auth/register", (req: Request, res: Response) => {
     res.status(400).send("Error: Invalid request");
     return;
   }
-  mqttPublishWithResponse(req, res, "accounts", "accounts/register", {
-    data: {
-      name: req.body.name,
-      email: req.body.email,
-      personnummer: req.body.personnummer,
-      passwordHash: req.body.passwordHash,
+  broker.publishToService(
+    ServiceType.Accounts,
+    "accounts/register",
+    {
+      data: {
+        name: req.body.name,
+        email: req.body.email,
+        personnummer: req.body.personnummer,
+        passwordHash: req.body.passwordHash,
+      },
     },
-  });
+    {
+      onResponse(mres: MqttResponse) {
+        // todo: get status from response
+        res.status(200).send(mres);
+      },
+      onServiceError(msg: string) {
+        res.status(500).send(msg);
+      },
+    },
+  );
 });
 
 app.use("/", (req: Request, res: Response, next: NextFunction) => {
