@@ -1,26 +1,31 @@
 import { Component, inject } from '@angular/core';
 import { MatTabGroup, MatTab } from '@angular/material/tabs';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Doctors } from './doctors/doctors';
 import { Clinics } from './clinics/clinics';
 import { ClinicMap } from './map/map';
+import { getToken } from '../authentication/guard';
 import { Clinic } from '../../components/clinic/clinic.interface';
 import { Doctor } from '../../components/doctor/doctor.interface';
+import { Booking } from '../../components/booking/booking.interface';
+import { BookingComponent } from '../../components/booking/booking.component';
 
 @Component({
   templateUrl: './home.html',
   styleUrl: './home.css',
-  imports: [Clinics, Doctors, MatTabGroup, MatTab, ClinicMap],
+  imports: [Clinics, Doctors, MatTabGroup, MatTab, ClinicMap, BookingComponent],
 })
 export class Home {
   private http = inject(HttpClient);
 
   clinics: Array<Clinic> | null | undefined;
   doctors: Array<Doctor> | null | undefined;
+  bookings: Array<Booking> | null | undefined;
 
   constructor() {
     this.fetchDoctors();
     this.fetchClinics();
+    this.fetchBookings();
   }
 
   protected fetchDoctors(): void {
@@ -78,6 +83,53 @@ export class Home {
 
         console.error('Error fetching clinics: ', error);
       },
+    });
+  }
+
+  protected fetchBookings(): void {
+    this.bookings = undefined;
+
+    const userID = getToken(true).userId;
+
+    if (userID) {
+      this.http
+        .get<Array<any>>(`http://localhost:3000/appointments/user`, {
+          headers: new HttpHeaders().set(
+            'Authorization',
+            `Bearer ${getToken()}`,
+          ),
+        })
+        .subscribe({
+          next: (data) => {
+            this.bookings = data
+              .filter(
+                (el) =>
+                  el.startTime && el.endTime && el.doctor && el.doctor.name,
+              )
+              .map(
+                (it) =>
+                  ({
+                    start: new Date(it.startTime),
+                    end: new Date(it.endTime),
+                    doctor: {
+                      _id: it.doctor._id,
+                      name: it.doctor.name,
+                    },
+                  }) as Booking,
+              );
+          },
+          error: (error) => {
+            this.bookings = null;
+
+            console.error('Error fetching bookings: ', error);
+          },
+        });
+    }
+  }
+
+  protected removeBooking(booking: Booking) {
+    this.bookings = this.bookings?.filter(function (item) {
+      return item !== booking;
     });
   }
 }
