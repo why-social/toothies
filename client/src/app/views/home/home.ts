@@ -7,17 +7,20 @@ import { ClinicMap } from './map/map';
 import { getToken } from '../authentication/guard';
 import { Clinic } from '../../components/clinic/clinic.interface';
 import { Doctor } from '../../components/doctor/doctor.interface';
+import { Booking } from '../../components/booking/booking.interface';
+import { BookingComponent } from '../../components/booking/booking.component';
 
 @Component({
   templateUrl: './home.html',
   styleUrl: './home.css',
-  imports: [Clinics, Doctors, MatTabGroup, MatTab, ClinicMap],
+  imports: [Clinics, Doctors, MatTabGroup, MatTab, ClinicMap, BookingComponent],
 })
 export class Home {
   private http = inject(HttpClient);
 
   clinics: Array<Clinic> | null | undefined;
   doctors: Array<Doctor> | null | undefined;
+  bookings: Array<Booking> | null | undefined;
 
   constructor() {
     this.fetchDoctors();
@@ -84,6 +87,8 @@ export class Home {
   }
 
   protected fetchBookings(): void {
+    this.bookings = undefined;
+
     const userID = getToken(true).userId;
 
     if (userID) {
@@ -96,12 +101,35 @@ export class Home {
         })
         .subscribe({
           next: (data) => {
-            console.log(data);
+            this.bookings = data
+              .filter(
+                (el) =>
+                  el.startTime && el.endTime && el.doctor && el.doctor.name,
+              )
+              .map(
+                (it) =>
+                  ({
+                    start: new Date(it.startTime),
+                    end: new Date(it.endTime),
+                    doctor: {
+                      _id: it.doctor._id,
+                      name: it.doctor.name,
+                    },
+                  }) as Booking,
+              );
           },
           error: (error) => {
+            this.bookings = null;
+
             console.error('Error fetching bookings: ', error);
           },
         });
     }
+  }
+
+  protected removeBooking(booking: Booking) {
+    this.bookings = this.bookings?.filter(function (item) {
+      return item !== booking;
+    });
   }
 }

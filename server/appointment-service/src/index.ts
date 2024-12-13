@@ -798,19 +798,21 @@ async function getAppointmentsForUser(payload: any, responseTopic: string) {
           from: "doctors",
           localField: "doctorId",
           foreignField: "_id",
-          as: "doctorName",
+          as: "doctor",
         },
       },
       {
-        $unwind: "$doctorName",
+        $unwind: "$doctor",
       },
       {
         $project: {
           startTime: 1,
           endTime: 1,
-          doctorId: 1,
           bookedBy: 1,
-          doctorName: "$doctorName.name",
+          doctor: {
+            _id: "$doctor._id",
+            name: "$doctor.name",
+          },
         },
       },
       {
@@ -819,9 +821,5 @@ async function getAppointmentsForUser(payload: any, responseTopic: string) {
     ])
     .toArray();
 
-  const res = JSON.stringify({
-    data: userAppointments,
-  });
-
-  mqttClient.publish(responseTopic, res);
+  mqttClient.publish(responseTopic, JSON.stringify(userAppointments));
 }
