@@ -8,8 +8,7 @@ import uniqid from "uniqid";
 
 export class ServiceBroker {
   private serviceMap: Map<ServiceType, ServicesList> = new Map(); // TODO enum instead of string?
-  private static readonly heartbeatTopic = "heartbeat/+";
-  private static readonly heartbeatRx = /^heartbeat\/(\w+)$/;
+  private static readonly timeoutDuration = 3000;
   private static readonly mqttOptions: IClientOptions = {
     username: "service",
     password: "Ilike2makewalks",
@@ -73,8 +72,6 @@ export class ServiceBroker {
     message: Object,
     cb: ResponseListener,
   ) {
-    const options: IClientPublishOptions = { qos: 2 };
-    const timeoutDuration = 3000;
     let retries = 0;
     const servicesList = this.serviceMap.get(service);
     if (!servicesList) {
@@ -85,66 +82,39 @@ export class ServiceBroker {
 
     const reqTimestamp = Date.now(); // timestamp to identify req and res
     const reqId = uniqid();
-    let requestMessage = JSON.stringify({
+    let requestMessage = {
       timestamp: reqTimestamp,
       reqId: reqId,
       data: { ...message },
-    });
+    } as MqttRequest;
 
-    const publishRequest = (serviceId: string) => {
-      const publishTopic = `${serviceId}/${topic}`;
-      const responseTopic = `res/${reqId}`;
-
-      // handler for receiving a response from a service.
-      // expects a response message on the topic '${serviceId}/res/${reqTimestamp}'
-      const responseHandler = (topic: string, message: Buffer) => {
-        if (topic === responseTopic) {
-          clearTimeout(timeout);
-          this.mqttClient.removeListener("message", responseHandler);
-          this.mqttClient.unsubscribe(responseTopic);
-          console.log(`Received response: ${message.toString()}\n`);
-          cb.onResponse(JSON.parse(message.toString()) as MqttResponse);
-          return;
-        }
-      };
-
-      // subscribe and attach response handler
-      this.mqttClient.subscribe(responseTopic);
-      this.mqttClient.on("message", responseHandler);
-
-      this.mqttClient.publish(publishTopic, requestMessage, options, (err) => {
-        if (err) return cb.onServiceError("Failed to publish request message");
-        console.log(`Published request: ${requestMessage} to ${publishTopic}`);
-      });
-
-      const timeout = setTimeout(() => {
-        console.log(
-          `Request to service ${serviceId} timed out. Redirecting to another service...`,
-        );
-        this.mqttClient.removeListener("message", responseHandler);
-        this.mqttClient.unsubscribe(responseTopic);
-        retries++;
-        if (retries < maxRetries) {
-          const newServiceId = servicesList
-            .getRoundRobinService()
-            ?.getServiceId();
-          if (newServiceId) {
-            publishRequest(newServiceId);
+    const publishWithRetry = (serviceId: string) => {
+      this.subscribeToResponse(
+        reqId,
+        (message) => {
+          cb.onResponse(JSON.parse(message) as MqttResponse);
+        },
+        () => {
+          console.log(
+            `Request to service ${serviceId} timed out. Redirecting to another service...`,
+          );
+          if (++retries < maxRetries) {
+            this.retryRequest(servicesList, publishWithRetry, cb);
           } else {
-            cb.onServiceError("No available services to handle the request");
-            console.log("No available services to handle the request\n");
+            cb.onServiceError("Request timed out after multiple retries");
+            console.log("Request timed out after multiple retries\n");
           }
-        } else {
-          cb.onServiceError("Request timed out after multiple retries");
-          console.log("Request timed out after multiple retries\n");
-        }
-      }, timeoutDuration);
+        },
+      );
+
+      this.publishRequest(`${serviceId}/${topic}`, requestMessage, cb);
     };
+
     const initialServiceId = servicesList
       .getRoundRobinService()
       ?.getServiceId();
     if (initialServiceId) {
-      publishRequest(initialServiceId);
+      publishWithRetry(initialServiceId);
     } else {
       cb.onServiceError("No available services to handle the request");
       console.log("No available services to handle the request\n");
@@ -178,5 +148,61 @@ export class ServiceBroker {
     } else {
       servicesList.updateHeartbeat(serviceId);
     }
+  }
+
+  private subscribeToResponse(
+    reqId: string,
+    onResponse: (message: string) => void,
+    onTimeout: () => void,
+  ) {
+    // handler for receiving a response from a service.
+    // expects a response message on the topic 'res/${reqId}'
+    const responseTopic = `res/${reqId}`;
+    const responseHandler = (topic: string, message: Buffer) => {
+      if (topic === responseTopic) {
+        clearTimeout(timeout);
+        this.mqttClient.removeListener("message", responseHandler);
+        this.mqttClient.unsubscribe(responseTopic);
+        console.log(`Received response: ${message.toString()}\n`);
+        onResponse(message.toString());
+        return;
+      }
+    };
+
+    // subscribe and attach response handler
+    this.mqttClient.subscribe(responseTopic);
+    this.mqttClient.on("message", responseHandler);
+
+    const timeout = setTimeout(() => {
+      this.mqttClient.removeListener("message", responseHandler);
+      this.mqttClient.unsubscribe(responseTopic);
+      onTimeout();
+    }, ServiceBroker.timeoutDuration);
+  }
+
+  private retryRequest(
+    servicesList: ServicesList,
+    retry: (serviceId: string) => void,
+    cb: ResponseListener,
+  ) {
+    const newServiceId = servicesList.getRoundRobinService()?.getServiceId();
+    if (newServiceId) {
+      retry(newServiceId);
+    } else {
+      cb.onServiceError("No available services to handle the request");
+      console.log("No available services to handle the request\n");
+    }
+  }
+
+  private publishRequest(
+    topic: string,
+    message: MqttRequest,
+    cb: ResponseListener,
+  ) {
+    const payload = JSON.stringify(message);
+    this.mqttClient.publish(topic, payload, { qos: 2 }, (err) => {
+      if (err) return cb.onServiceError("Failed to publish request message");
+      console.log(`Published request: ${payload} to ${topic}`);
+    });
   }
 }
