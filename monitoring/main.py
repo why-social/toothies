@@ -1,4 +1,6 @@
-from dash import Dash, dcc, html, Input, Output, callback
+from dash import Dash, dcc, html, Input, Output, State, callback
+import plotly.express as px
+import pandas as pd
 from os import getenv
 from dotenv import load_dotenv
 import paho.mqtt.client as mqtt
@@ -20,7 +22,7 @@ CRITICAL_DEVIATION = 0.5 # %
 heartbeats = defaultdict(lambda: defaultdict(lambda: deque(maxlen=120)))
 
 # Log requests
-# { <req_id>: {'req_time': <int>, 'res_time': <int | None>},...}
+# { <req_id>: {'topic': <string>, 'req_time': <int>, 'res_time': <int | None>},...}
 req_res = defaultdict(lambda: defaultdict())
 
 def on_connect(client, userdata, flags, rc, properties):
@@ -30,7 +32,6 @@ def on_connect(client, userdata, flags, rc, properties):
 def on_message(client, userdata, message):
     global heartbeats, req_res
     payload = json.loads(message.payload.decode())
-    print(f"MQTT [{message.topic}]: {payload}")
 
     if message.topic.startswith('heartbeat/'):
         service_type = message.topic.split('/')[1]
@@ -39,25 +40,18 @@ def on_message(client, userdata, message):
 
     elif message.topic.startswith('res/'):
         req_id = str(message.topic.split('/')[1])
-        print(req_id)
-        print(req_res.get(req_id))
-        print(payload.get('timestamp'))
         if req_res.get(req_id) and payload.get('timestamp'):
-            print("here1")
             req_res[str(req_id)]['res_time'] = int(payload['timestamp'])
-            print("here2")
 
     else: #request
-        print(payload.get('reqId'))
-        print(payload.get('timestamp'))
         try:
             if payload.get('reqId') and payload.get('timestamp'):
                 req_res[str(payload.get('reqId'))]['req_time'] = int(payload['timestamp'])
+                req_res[str(payload.get('reqId'))]['topic'] = message.topic[message.topic.index('/')+1:]
                 req_res[str(payload.get('reqId'))]['res_time'] = None
         except Exception as e:
             print(f"Invalid requesting ja. {e}")
 
-    print(req_res)
 
 
 # Start MQTT Client in a separate thread
@@ -107,15 +101,34 @@ app.layout = html.Div([
         id="interval-component",
         interval=1000,  # Refresh every second
         n_intervals=0
-    )
+    ),
+    dcc.Store(id="data-store"),
 ])
+
+@callback(
+    Output("data-store", "data"),
+    Input("interval-component", "n_intervals")
+)
+def update_data_store(n):
+    records = []
+    for req_id, details in req_res.items():
+        if details["res_time"] is not None:  # Exclude entries with no response
+            delay = details["res_time"] - details["req_time"]
+            records.append({
+                "Request ID": req_id,
+                "Topic": details["topic"],
+                "Request Time": time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(details['req_time'] / 1000)),
+                "Delay": delay,
+            })
+    return records
 
 # Dash Callback to Update Graphs
 @callback(
     Output("heartbeats-graph", "figure"),
-    Input("interval-component", "n_intervals")
+    Input("interval-component", "n_intervals"),
+    State("responses-graph", "relayoutData")
 )
-def update_hearbeats_graph(n):
+def update_hearbeats_graph(n, relayout_data):
     if not heartbeats:
         return {'data': [], 'layout': {'title': 'No data available'}}
 
@@ -205,45 +218,35 @@ def update_hearbeats_graph(n):
 
 @callback(
     Output("responses-graph", "figure"),
-    Input("interval-component", "n_intervals")
+    Input("data-store", "data"),
+    State("responses-graph", "relayoutData")
 )
-def update_responses_graph(n):
-    if not req_res:
-        return {'data': [], 'layout': {'title': 'No data available'}}
+def update_responses_graph(data, relayout_data):
+    df = pd.DataFrame(data)
 
-    # Create a single figure with multiple traces
-    figure = {
-        'data': [],
-        'layout': {
-            'title': 'Response Times',
-            'xaxis': {'title': 'Time of request'},
-            'yaxis': {'title': 'Time to process (s)'},
-            'showlegend': True
-        }
-    }
 
-    differences = []
-    timestamps = []
-    for req_id, times in req_res.items():
-        # req = { 'req_time': <int>, 'res_time': <int | None> }
-        req_time = times.get('req_time')
-        res_time = times.get('res_time')
-        if req_time and res_time:
-            # Calculate time differences between req and res
-            differences.append(res_time - req_time)
-            # Use timestamps for x-axis formatted as dates
-            timestamps.append(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(req_time)))
+    # Create a Plotly figure
+    if not df.empty:
+        fig = px.scatter(
+            df,
+            x="Request Time",
+            y="Delay",
+            color="Topic",
+            # line_group="Topic",
+            title="MQTT Request-Response Delays",
+            labels={"Delay": "Response Delay (ms)", "Time of Request": "Timestamp"},
+        )
+        fig.update_traces(mode="lines+markers")
+    else:
+        fig = px.scatter(title="No data available", labels={"x": "Request Time", "y": "Delay"})
 
-            # Add trace to the figure
-            figure['data'].append({
-                'x': timestamps,
-                'y': differences,
-                'type': 'scatter',
-                'mode': 'lines+markers',
-                'name': f'req-{req_id}'
-            })
+    # Retain the user's current zoom/pan state
+    if relayout_data:
+        pass
+        # fig.update_layout(relayout_data)
+        # TODO: retain state but also update data
 
-    return figure
+    return fig
 
 if __name__ == '__main__':
     mqtt_thread = threading.Thread(target=start_mqtt)
