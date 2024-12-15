@@ -1,0 +1,25 @@
+{
+  "name": "notification-service",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node dist/index.js",
+    "build": "tsc",
+    "dev": "tsc && node dist/index.js"
+  },
+  "dependencies": {
+    "dockerode": "^4.0.2",
+    "dotenv": "^16.4.5",
+    "mqtt": "^5.10.2",
+    "mqtt-match": "^3.0.0",
+    "node-mailjet": "^6.0.6",
+    "uniqid": "^5.4.0"
+  },
+  "devDependencies": {
+    "@types/dockerode": "^3.3.32",
+    "@types/node": "^22.9.0",
+    "@types/uniqid": "^5.3.4",
+    "mongodb": "^6.11.0",
+    "typescript": "^5.6.3"
+  }
+}
