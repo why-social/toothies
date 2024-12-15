@@ -4,28 +4,33 @@ This is a simple client wrapper to be used from a service to communicate with a 
 
 ## How to get it working
 
-### The usual suspects
+### 1. The usual suspects
+
+_from `modules/mqtt-service-broker`_
 
   ```bash
   npm install
   npm run build
   ```
 
-### The trick
+### 2. The trick
+
+_from `modules/mqtt-service-broker`_
 
   ```bash
   npm link
   ```
 
-### Usage
+### 3. Usage
 
-__In the service__
+_from the service directory_
 
   ```bash
   npm link @toothies-org/mqtt-service-broker
   ```
 
   ```typescript
+  import { ServiceBroker } from "@toothies-org/mqtt-service-broker";
   // -------------------- DEFINE BROKER --------------------
   const broker: ServiceBroker = new ServiceBroker(
     "service name",
