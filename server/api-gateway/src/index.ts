@@ -79,6 +79,7 @@ mqttClient.on("connect", () => {
 
       if (!servicesList.hasService(serviceId)) {
         servicesList.addService(msgService);
+		console.log(`Added service: ${containerName} from topic ${topic}`);
       } else {
         servicesList.updateHeartbeat(serviceId);
       }

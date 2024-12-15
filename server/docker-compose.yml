@@ -15,3 +15,9 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     deploy:
       replicas: 1
+    
+  notification-service:
+    build: ./notification-service
+    image: notification-service
+    ports:
+      - "3003"
