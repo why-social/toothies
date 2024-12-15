@@ -336,6 +336,24 @@ async function handleAppointmentsRequest(payload: any) {
         `appointments/${payload.data.doctorId}`,
         JSON.stringify(slot),
       );
+
+      // Notify the doctor that a booking has been cancelled
+      mqttClient.publish(
+        "notifications/doctor",
+        JSON.stringify({
+          timestamp: new Date(),
+          reqId: uniqid(),
+          data: {
+            userId: payload.data.doctorId,
+            emailMessage: {
+              subject: "Booking Cancelled by Patient",
+              text: `A booking has been cancelled by patient for ${payload.data.startTime}`,
+              html: `<p>A booking has been cancelled by patient for ${payload.data.startTime}</p>`,
+            },
+          },
+        }),
+      );
+
       console.log(`Booking successfully cancelled: ${payload.data.startTime}`);
       break;
 
