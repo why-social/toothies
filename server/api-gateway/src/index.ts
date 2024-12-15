@@ -218,14 +218,35 @@ app.get("/doctors", (req: Request, res: Response) => {
  *  Request Format:
  *      Endpoint: /appointments?doctorId
  */
-// TODO: Auth
-app.get("/appointments", (req: Request, res: Response) => {
+app.get("/appointments", authMiddleware, (req: Request, res: Response) => {
   if (!req.query?.doctorId) {
-    res.status(400).send("No id specified");
+    res.status(400).send("No doctor id specified");
     return;
   }
+
+  if (!req.isAuth || !req.user) {
+    res.status(401).send("Unauthorized");
+    return;
+  }
+
   mqttPublishWithResponse(req, res, "appointments", "appointments/get", {
     doctorId: req.query.doctorId,
+  });
+});
+
+/**
+ * Get upcoming booked appointments of a user
+ * Request Format:
+ * 	Endpoint: /appointments/user
+ */
+app.get("/appointments/user", authMiddleware, (req: Request, res: Response) => {
+  if (!req.isAuth || !req.user) {
+    res.status(401).send("Unauthorized");
+    return;
+  }
+
+  mqttPublishWithResponse(req, res, "appointments", "appointments/getUser", {
+    userId: req.user,
   });
 });
 

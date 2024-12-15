@@ -155,14 +155,14 @@ mqttClient.on("message", async (topic, message) => {
       }
     }
     case "appointments": {
-      if (!action || !payload.doctorId) {
+      if (!action) {
         console.error("Invalid query:");
         console.log(payload);
         break;
       }
 
-      payload.doctorId = new ObjectId(payload.doctorId);
-      payload.userId = new ObjectId(payload.userId);
+      if (payload.doctorId) payload.doctorId = new ObjectId(payload.doctorId);
+      if (payload.userId) payload.userId = new ObjectId(payload.userId);
 
       await handleAppointmentsRequest(payload);
       break;
@@ -192,6 +192,11 @@ async function handleAppointmentsRequest(payload: any) {
 
   switch (payload.action) {
     case "get":
+      if (!payload.doctorId) {
+        console.error("Invalid query:");
+        console.log(payload);
+        break;
+      }
       const doctorSlots = await slots
         .find(
           { doctorId: payload.doctorId },
@@ -227,11 +232,12 @@ async function handleAppointmentsRequest(payload: any) {
       break;
 
     case "book": // book a slot
-      if(!payload.startTime) {
+      if (!payload.startTime || !payload.doctorId) {
         console.error("Invalid query:");
         console.log(payload);
         break;
       }
+
       payload.startTime = new Date(payload.startTime);
       slot = await slots.findOne({
         doctorId: payload.doctorId,
@@ -286,11 +292,12 @@ async function handleAppointmentsRequest(payload: any) {
       break;
 
     case "cancel": // cancel a slot
-      if(!payload.startTime) {
+      if (!payload.startTime || !payload.doctorId) {
         console.error("Invalid query:");
         console.log(payload);
         break;
       }
+
       payload.startTime = new Date(payload.startTime);
       slot = await slots.findOne({
         doctorId: payload.doctorId,
@@ -369,17 +376,47 @@ async function handleAppointmentsRequest(payload: any) {
 
       console.log(`Booking successfully cancelled: ${payload.startTime}`);
       break;
-    
+
     case "getDocDate": // get all booked slots for a doctor on a specific day
-        getAppointmentsForDoctorOnDate(payload, responseTopic);
+      if (!payload.doctorId) {
+        console.error("Invalid query:");
+        console.log(payload);
         break;
+      }
+
+      getAppointmentsForDoctorOnDate(payload, responseTopic);
+      break;
 
     case "getDocUpcoming":
-        getAppointmentsForDoctorUpcoming(payload, responseTopic);
+      if (!payload.doctorId) {
+        console.error("Invalid query:");
+        console.log(payload);
         break;
-    
+      }
+
+      getAppointmentsForDoctorUpcoming(payload, responseTopic);
+      break;
+
     case "getDocPatient":
-        getAppointmentsForDoctorPerPatient(payload, responseTopic);
+      if (!payload.doctorId) {
+        console.error("Invalid query:");
+        console.log(payload);
+        break;
+      }
+
+      getAppointmentsForDoctorPerPatient(payload, responseTopic);
+
+    case "getUser":
+      console.log(payload.userId);
+
+      if (!payload.userId) {
+        console.error("Invalid query");
+        console.log(payload);
+        break;
+      }
+
+      getAppointmentsForUser(payload, responseTopic);
+      break;
 
     default:
       console.error("Invalid action");
@@ -389,7 +426,33 @@ async function handleAppointmentsRequest(payload: any) {
 
 async function getAllDoctors(payload: any) {
   const responseTopic = `${serviceId}/res/${payload.timestamp}`;
-  let allDoctors = await doctors.find().toArray();
+  let allDoctors = await doctors
+    .aggregate([
+      { $match: { _id: { $exists: true } } },
+      {
+        $lookup: {
+          from: "clinics",
+          localField: "clinic",
+          foreignField: "_id",
+          as: "clinic",
+        },
+      },
+      {
+        $unwind: "$clinic",
+      },
+      {
+        $project: {
+          _id: 1,
+          name: 1,
+          type: 1,
+          clinic: {
+            _id: "$clinic._id",
+            name: "$clinic.name",
+          },
+        },
+      },
+    ])
+    .toArray();
   mqttClient.publish(responseTopic, JSON.stringify(allDoctors));
 }
 
@@ -411,11 +474,11 @@ async function handleSlotRequest(payload: any) {
   // if(!doctor)
   // 	return mqttClient.publish(payload.responseTopic, JSON.stringify({message: "Doctor not found"}));
 
-    // Check if the start time is before the current timme
-    if (payload.body.startDate <= new Date()) {
-      return mqttClient.publish(
-          responseTopic,
-          JSON.stringify({ message: "Invalid time range" })
+  // Check if the start time is before the current timme
+  if (payload.body.startDate <= new Date()) {
+    return mqttClient.publish(
+      responseTopic,
+      JSON.stringify({ message: "Invalid time range" })
     );
   }
 
@@ -511,16 +574,24 @@ async function handleSlotRequest(payload: any) {
   }
 }
 
-async function createSlot(payload: any, doctorId: ObjectId ,startDate: Date, endDate: Date){
-    const slot = {
-        doctorId: doctorId,
-        startTime: startDate,
-        endTime: endDate,
-        bookedBy: null,
-        test: true,
-    };
-    await slots.insertOne(slot);
-    mqttClient.publish(payload.responseTopic, JSON.stringify({message: "Slot created"}));
+async function createSlot(
+  payload: any,
+  doctorId: ObjectId,
+  startDate: Date,
+  endDate: Date
+) {
+  const slot = {
+    doctorId: doctorId,
+    startTime: startDate,
+    endTime: endDate,
+    bookedBy: null,
+    test: true,
+  };
+  await slots.insertOne(slot);
+  mqttClient.publish(
+    payload.responseTopic,
+    JSON.stringify({ message: "Slot created" })
+  );
 }
 
 async function deleteSlot(payload: any, doctorId: ObjectId, startDate: Date) {
@@ -568,9 +639,12 @@ async function editSlot(
       JSON.stringify({ message: "Slot not found" })
     );
 
-    // Check if the slot is booked
-    if(slot.isBooked || slot.bookedBy)
-        return mqttClient.publish(payload.responseTopic, JSON.stringify({message: "Unable to update, slot is booked"}));
+  // Check if the slot is booked
+  if (slot.isBooked || slot.bookedBy)
+    return mqttClient.publish(
+      payload.responseTopic,
+      JSON.stringify({ message: "Unable to update, slot is booked" })
+    );
 
   // Edit the slot
   slot.startTime = startDate;
@@ -585,124 +659,182 @@ async function editSlot(
   );
 }
 
-async function getAppointmentsForDoctorOnDate(payload: any, responseTopic: string){
-    const doctorId = new ObjectId(payload.doctorId);
-    const date = new Date(payload.date);
+async function getAppointmentsForDoctorOnDate(
+  payload: any,
+  responseTopic: string
+) {
+  const doctorId = new ObjectId(payload.doctorId);
+  const date = new Date(payload.date);
 
-    // Set the start of the day (00:00:00)
-    const startOfDay = new Date(date.setHours(0, 0, 0, 0));
+  // Set the start of the day (00:00:00)
+  const startOfDay = new Date(date.setHours(0, 0, 0, 0));
 
-    // Set the end of the day (23:59:59)
-    const endOfDay = new Date(date.setHours(23, 59, 59, 999));
+  // Set the end of the day (23:59:59)
+  const endOfDay = new Date(date.setHours(23, 59, 59, 999));
 
-    const dateAppointments = await slots.aggregate([
-        {
-            $match: {
-                doctorId: doctorId,
-                startTime: {$gte: startOfDay, $lt: endOfDay}
-            }
+  const dateAppointments = await slots
+    .aggregate([
+      {
+        $match: {
+          doctorId: doctorId,
+          startTime: { $gte: startOfDay, $lt: endOfDay },
         },
-        {
-            $lookup: {
-                from: "users",
-                localField: "bookedBy",
-                foreignField: "_id",
-                as: "patientName"
-            },
+      },
+      {
+        $lookup: {
+          from: "users",
+          localField: "bookedBy",
+          foreignField: "_id",
+          as: "patientName",
         },
-        {
-            $unwind: "$patientName"
+      },
+      {
+        $unwind: "$patientName",
+      },
+      {
+        $project: {
+          startTime: 1,
+          endTime: 1,
+          doctorId: 1,
+          bookedBy: 1,
+          patientName: "$patientName.name",
         },
-        {
-            $project: {
-                startTime: 1,
-                endTime: 1,
-                doctorId: 1,
-                bookedBy: 1,
-                patientName: "$patientName.name"
-            }
-        },
-        {
-            $sort: {startTime: 1}
-        }
-    ]).toArray();
+      },
+      {
+        $sort: { startTime: 1 },
+      },
+    ])
+    .toArray();
 
-    const res = JSON.stringify({
-        data: dateAppointments,
-    })
+  const res = JSON.stringify({
+    data: dateAppointments,
+  });
 
-    mqttClient.publish(responseTopic, res);
+  mqttClient.publish(responseTopic, res);
 }
 
+async function getAppointmentsForDoctorUpcoming(
+  payload: any,
+  responseTopic: string
+) {
+  const doctorId = new ObjectId(payload.doctorId);
+  const startDate = new Date();
 
-async function getAppointmentsForDoctorUpcoming(payload: any, responseTopic: string){
-    const doctorId = new ObjectId(payload.doctorId);
-    const startDate = new Date();
-    
-    const upcomingAppointments = await slots.aggregate([
-        {
-            $match: {
-                doctorId: doctorId,
-                startTime: {$gte: startDate}
-            }
+  const upcomingAppointments = await slots
+    .aggregate([
+      {
+        $match: {
+          doctorId: doctorId,
+          startTime: { $gte: startDate },
         },
-        {
-            $lookup: {
-                from: "users",
-                localField: "bookedBy",
-                foreignField: "_id",
-                as: "patientName"
-            },
+      },
+      {
+        $lookup: {
+          from: "users",
+          localField: "bookedBy",
+          foreignField: "_id",
+          as: "patientName",
         },
-        {
-            $unwind: "$patientName"
+      },
+      {
+        $unwind: "$patientName",
+      },
+      {
+        $project: {
+          startTime: 1,
+          endTime: 1,
+          doctorId: 1,
+          bookedBy: 1,
+          patientName: "$patientName.name",
         },
-        {
-            $project: {
-                startTime: 1,
-                endTime: 1,
-                doctorId: 1,
-                bookedBy: 1,
-                patientName: "$patientName.name"
-            }
-        },
-        {
-            $sort: {startTime: 1}
-        },
-        {
-            $limit: 200
-        }
-    ]).toArray();
+      },
+      {
+        $sort: { startTime: 1 },
+      },
+      {
+        $limit: 200,
+      },
+    ])
+    .toArray();
 
-    const res = JSON.stringify({
-        data: upcomingAppointments,
-    })
+  const res = JSON.stringify({
+    data: upcomingAppointments,
+  });
 
-    mqttClient.publish(responseTopic, res);
+  mqttClient.publish(responseTopic, res);
 }
 
-async function getAppointmentsForDoctorPerPatient(payload: any, responseTopic: string){
-    const doctorId = new ObjectId(payload.doctorId);
-    const patientName = payload.patientName;
-    const patient = await users.findOne({name: patientName});
-    if(!patient){
-        return mqttClient.publish(responseTopic, JSON.stringify({message: "Patient not found"}));
-    }
-    const patientId = patient._id;
+async function getAppointmentsForDoctorPerPatient(
+  payload: any,
+  responseTopic: string
+) {
+  const doctorId = new ObjectId(payload.doctorId);
+  const patientName = payload.patientName;
+  const patient = await users.findOne({ name: patientName });
+  if (!patient) {
+    return mqttClient.publish(
+      responseTopic,
+      JSON.stringify({ message: "Patient not found" })
+    );
+  }
+  const patientId = patient._id;
 
-    const patientAppointments = await slots.find({
-        doctorId: doctorId,
-        bookedBy: patientId
-    }).toArray();
-
-    const appointmentsWithNames = patientAppointments.map(appointment => {
-        appointment.patientName = patientName;
-        return appointment;
-    });
-
-    const res = JSON.stringify({
-        data: appointmentsWithNames
+  const patientAppointments = await slots
+    .find({
+      doctorId: doctorId,
+      bookedBy: patientId,
     })
+    .toArray();
 
-    mqttClient.publish(responseTopic, res);
+  const appointmentsWithNames = patientAppointments.map((appointment) => {
+    appointment.patientName = patientName;
+    return appointment;
+  });
+
+  const res = JSON.stringify({
+    data: appointmentsWithNames,
+  });
+
+  mqttClient.publish(responseTopic, res);
+}
+
+async function getAppointmentsForUser(payload: any, responseTopic: string) {
+  const userId = new ObjectId(payload.userId);
+  const userAppointments = await slots
+    .aggregate([
+      {
+        $match: {
+          bookedBy: userId,
+          startTime: { $gte: new Date() },
+        },
+      },
+      {
+        $lookup: {
+          from: "doctors",
+          localField: "doctorId",
+          foreignField: "_id",
+          as: "doctor",
+        },
+      },
+      {
+        $unwind: "$doctor",
+      },
+      {
+        $project: {
+          startTime: 1,
+          endTime: 1,
+          bookedBy: 1,
+          doctor: {
+            _id: "$doctor._id",
+            name: "$doctor.name",
+          },
+        },
+      },
+      {
+        $sort: { startTime: 1 },
+      },
+    ])
+    .toArray();
+
+  mqttClient.publish(responseTopic, JSON.stringify(userAppointments));
 }

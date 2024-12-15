@@ -1,15 +1,23 @@
 import { Clinic } from '../clinic/clinic.interface';
 
-export interface PopulatedDoctor {
+export interface Doctor {
   name: string;
   _id: string;
   type: string;
-  clinic: Clinic; // clinic document
+  clinic: Clinic;
 }
 
 export interface Doctor {
   name: string;
   _id: string;
   type: string;
-  clinic: string; // clinic identifier
+}
+
+export interface Doctor {
+  name: string;
+  _id: string;
+}
+
+export interface Doctor {
+  _id: string;
 }

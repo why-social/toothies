@@ -4,7 +4,6 @@ import { Router } from '@angular/router';
 import { MatIcon } from '@angular/material/icon';
 import { AuthGuard } from '../views/authentication/guard';
 import { MatButtonModule } from '@angular/material/button';
-import { Location } from '@angular/common';
 
 @Component({
   selector: 'app-root',
@@ -14,7 +13,6 @@ import { Location } from '@angular/common';
 })
 export class Main {
   protected router = inject(Router);
-  protected location = inject(Location);
 
   logOut() {
     localStorage.removeItem('token');
