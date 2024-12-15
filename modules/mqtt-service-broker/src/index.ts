@@ -12,7 +12,7 @@ export class ServiceBroker {
   private readonly mqttClient: MqttClient;
   private readonly resTopicPrefix: string;
 
-  private readonly uuid: String;
+  public readonly uuid: String;
   private readonly name: String;
   private readonly hearbeatMessage: string;
 
@@ -118,9 +118,13 @@ export class ServiceBroker {
     });
   };
 
-  public subscribe(topic: string, callback: (message: Buffer) => void) {
+  public subscribe(
+    topic: string,
+    callback: (message: Buffer) => void,
+    includeId: boolean = true,
+  ) {
     if (this.ready) {
-      topic = `${this.uuid}/${topic}`;
+      topic = includeId ? `${this.uuid}/${topic}` : topic;
       this.mqttClient.subscribe(topic);
       this.messageListeners.set(topic, callback);
 
@@ -132,8 +136,8 @@ export class ServiceBroker {
 
   public unsubscribe(topic: string) {
     if (this.ready) {
-      this.mqttClient.unsubscribe(`${this.uuid}/${topic}`);
-      this.messageListeners.delete(`${this.uuid}/${topic}`);
+      this.mqttClient.unsubscribe(topic);
+      this.messageListeners.delete(topic);
     } else {
       console.warn("Client tried to unsubscribe before acknowledgement.");
     }

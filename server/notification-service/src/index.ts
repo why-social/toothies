@@ -102,7 +102,7 @@ const broker: ServiceBroker = new ServiceBroker(
     onConnected() {
       // TODO: topics must include serviceId
       //serviceId/notifications/login
-      broker.subscribe("doctor", notifyDoctor);
+      broker.subscribe("notifications/doctor", notifyDoctor, false);
       //broker.subcscribe("user", notifyUser);
     },
   },
