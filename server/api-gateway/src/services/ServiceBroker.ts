@@ -124,7 +124,7 @@ export class ServiceBroker {
   public fromHeartbeat(serviceString: string, message: string) {
     const serviceType = typeFromString(serviceString);
     if (!serviceType) {
-      throw new Error("Invalid service type when adding to manager.");
+      return; // ignore unknown service types
     }
 
     const msgService: Service = Service.fromJSON(message.toString());
