@@ -168,11 +168,12 @@ mqttClient.on("message", async (topic, message) => {
       if (!action) {
         console.error("Invalid query:");
         console.log(payload);
+        console.log("here");
         break;
       }
 
-      if (data.doctorId) data.doctorId = new ObjectId(data.doctorId);
-      if (data.userId) data.userId = new ObjectId(data.userId);
+      if (data.doctorId) payload.data.doctorId = new ObjectId(data.doctorId);
+      if (data.userId) payload.data.userId = new ObjectId(data.userId);
 
       await handleAppointmentsRequest(payload);
       break;
@@ -361,6 +362,7 @@ async function handleAppointmentsRequest(payload: any) {
       if (!payload.data.doctorId) {
         console.error("Invalid query:");
         console.log(payload);
+        console.log("there1");
         publishResponse(payload.reqId, { message: "Invalid request" });
         break;
       }
@@ -372,6 +374,7 @@ async function handleAppointmentsRequest(payload: any) {
       if (!payload.data.doctorId) {
         console.error("Invalid query:");
         console.log(payload);
+        console.log("there2");
         publishResponse(payload.reqId, { message: "Invalid request" });
         break;
       }
@@ -382,12 +385,14 @@ async function handleAppointmentsRequest(payload: any) {
     case "getDocPatient":
       if (!payload.data.doctorId) {
         console.error("Invalid query:");
+        console.log("there3");
         console.log(payload);
         publishResponse(payload.reqId, { message: "Invalid request" });
         break;
       }
 
       getAppointmentsForDoctorPerPatient(payload);
+      break;
 
     case "getUser":
       console.log(payload.data.userId);
@@ -395,6 +400,7 @@ async function handleAppointmentsRequest(payload: any) {
       if (!payload.data.userId) {
         console.error("Invalid query");
         console.log(payload);
+        console.log("there4");
         publishResponse(payload.reqId, { message: "Invalid request" });
         break;
       }
