@@ -1,0 +1,25 @@
+{
+  "name": "@toothies-org/mqtt-service-broker",
+  "version": "1.0.0",
+  "description": "MQTT broker for (micro)service communication",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/uniqid": "^5.3.4",
+    "typescript": "^5.7.2"
+  },
+  "dependencies": {
+    "mqtt": "^5.10.3",
+    "mqtt-match": "^3.0.0",
+    "tslib": "^2.8.1",
+    "uniqid": "^5.4.0"
+  }
+}

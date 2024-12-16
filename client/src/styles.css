@@ -1,0 +1,57 @@
+html,
+body {
+  height: 100%;
+  background: var(--mat-sys-background);
+}
+
+body {
+  margin: 0;
+  font-family: Roboto, "Helvetica Neue", sans-serif;
+}
+
+app-root {
+  width: fit-content;
+  height: fit-content;
+  position: relative;
+  max-width: 100%;
+  width: 100%;
+  min-height: 100%;
+  flex-direction: column;
+  display: flex;
+  margin-left: auto;
+  margin-right: auto;
+  box-sizing: border-box;
+}
+
+.mat-mdc-tab-body-wrapper {
+  flex-grow: 1;
+}
+
+.mdc-tab__content {
+  position: absolute !important;
+  width: 100%;
+}
+
+@media screen and (min-width: 768px) {
+  app-root {
+    max-width: 768px;
+  }
+}
+
+@media screen and (min-width: 992px) {
+  app-root {
+    max-width: 992px;
+  }
+}
+
+@media screen and (min-width: 1200px) {
+  app-root {
+    max-width: 1200px;
+  }
+}
+
+@media screen and (min-width: 1400px) {
+  app-root {
+    max-width: 1400px;
+  }
+}

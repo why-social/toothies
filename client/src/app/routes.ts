@@ -1,0 +1,56 @@
+import { Routes } from '@angular/router';
+import { Booking } from './views/booking/booking';
+import { Home } from './views/home/home';
+import { Login } from './views/authentication/login/login';
+import { Register } from './views/authentication/register/register';
+import { AuthGuard, NegatedAuthGuard } from './views/authentication/guard';
+import { NotFound } from './views/not.found/not.found';
+import { ClinicView } from './views/clinic/clinic';
+
+export const routes: Routes = [
+  {
+    path: 'book/:id',
+    pathMatch: 'full',
+    component: Booking,
+    canActivate: [AuthGuard],
+  },
+  {
+    path: 'book',
+    redirectTo: '404',
+    pathMatch: 'full',
+  },
+  {
+    path: 'clinic/:id',
+    pathMatch: 'full',
+    component: ClinicView,
+    canActivate: [AuthGuard],
+  },
+  {
+    path: 'clinic',
+    redirectTo: '404',
+    pathMatch: 'full',
+  },
+  {
+    path: '',
+    component: Home,
+    pathMatch: 'full',
+    canActivate: [AuthGuard],
+  },
+
+  {
+    path: 'login',
+    pathMatch: 'full',
+    component: Login,
+    canActivate: [NegatedAuthGuard],
+  },
+  {
+    path: 'register',
+    pathMatch: 'full',
+    component: Register,
+    canActivate: [NegatedAuthGuard],
+  },
+
+  { path: '404', component: NotFound },
+
+  { path: '**', redirectTo: '404' },
+];

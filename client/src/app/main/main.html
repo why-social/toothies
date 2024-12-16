@@ -1,0 +1,15 @@
+<header>
+  <h3 (click)="router.navigateByUrl('')">Toothies</h3>
+  <button
+    class="logout"
+    mat-stroked-button
+    (click)="logOut()"
+    [style.display]="isLoginGuardProtected() ? 'flex' : 'none'"
+  >
+    <mat-icon>logout</mat-icon><span>Log out</span>
+  </button>
+</header>
+
+<main>
+  <router-outlet />
+</main>

@@ -1,0 +1,14 @@
+<div class="container">
+  @if (doctors) {
+    @for (doctor of doctors; track $index) {
+      <doctor [doctor]="doctor" />
+    }
+  } @else if (doctors === undefined) {
+    <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+  } @else {
+    <div class="exception">
+      <span>Something went wrong</span>
+      <button mat-stroked-button (click)="reloadEvent.emit()">Reload</button>
+    </div>
+  }
+</div>

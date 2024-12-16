@@ -1,180 +1,58 @@
+import { createServer } from "http";
+import { Server } from "socket.io";
 import express, { Express, Request, Response, NextFunction } from "express";
 import cors from "cors";
-import mqtt, { IClientOptions, IClientPublishOptions } from "mqtt";
-import { Service } from "./types/Service";
-import { ServicesList } from "./types/ServicesList";
+import { ServiceBroker } from "./services/ServiceBroker";
+import appointments from "./routes/appointments";
+import auth from "./routes/auth";
+import clinics from "./routes/clinics";
+import doctors from "./routes/doctors";
+import slots from "./routes/slots";
 
 const app: Express = express();
 const port: number = 3000;
-
-const mqttOptions: IClientOptions = {
-  username: "service",
-  password: "Ilike2makewalks",
-};
-
-const heartbeatTopic = "heartbeat/appointments"; // TODO: general topics
+const httpServer = createServer(app);
+const socket = new Server(httpServer, {
+  cors: { origin: "*" },
+});
 
 app.use(cors());
 // Parse requests of content-type 'application/json'
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
-const mqttClient = mqtt.connect(
-  "tls://0fc2e0e6e10649f790f059e77c606dfe.s1.eu.hivemq.cloud:8883",
-  mqttOptions,
-);
+export const broker = new ServiceBroker();
 
-let servicesList: ServicesList = new ServicesList(mqttClient);
-
-mqttClient.on("error", (error) => {
-  console.error("Mqtt error:", error);
-  mqttClient.end();
-});
-
-mqttClient.on("connect", () => {
-  console.log("Connected to MQTT broker");
-
-  // Subscribe to heartbeat topic
-  mqttClient.subscribe(heartbeatTopic, (err) => {
-    if (err) return console.error("Failed to subscribe to heartbeat topic");
-
-    console.log(`Subscribed to ${heartbeatTopic}`);
-  });
-
-  // Handle heartbeat messages, if a service is not in the list, add it
-  mqttClient.on("message", (topic, message) => {
-    if (topic === heartbeatTopic) {
-      const msgService: Service = Service.fromJSON(message);
-      const serviceId = msgService.getServiceId();
-      const containerName = msgService.getContainerName();
-
-      if (!servicesList.hasService(serviceId)) {
-        servicesList.addService(msgService);
-        mqttClient.subscribe(`appointments/${serviceId}/res`, (err) => {
-          if (err)
-            return console.error(
-              `Failed to subscribe to response topic for service: ${containerName}`,
-            );
-          console.log(`Added service: ${containerName}`);
-        });
-      } else {
-        servicesList.updateHeartbeat(serviceId);
-      }
-    }
-  });
-});
-
-function mqttPublishWithResponse(
-  req: Request,
-  res: Response,
-  topic: string,
-  message: Object,
-) {
-  const options: IClientPublishOptions = { qos: 2 };
-  const timeoutDuration = 3000;
-  let retries = 0;
-  const maxRetries = servicesList.getServicesCount();
-
-  const reqTimestamp = Date.now(); // timestamp to identify req and res
-  const requestMessage = JSON.stringify({
-    ...message,
-    timestamp: reqTimestamp,
-  });
-
-  const publishRequest = (serviceId: string) => {
-    const publishTopic = `${serviceId}/${topic}`;
-    const responseTopic = `${serviceId}/res/${reqTimestamp}`;
-
-    // handler for receiving a response from a service.
-    // expects a response message on the topic '$appointments/${serviceId}/res/${reqTimestamp}'
-    const responseHandler = (topic: string, message: Buffer) => {
-      if (topic === responseTopic) {
-        clearTimeout(timeout);
-        mqttClient.removeListener("message", responseHandler);
-        mqttClient.unsubscribe(responseTopic);
-        console.log(`Received response: ${message.toString()}\n`);
-        return res.status(200).send(`Reply: ${message.toString()}`);
-      }
-    };
-
-    // subscribe and attach response handler
-    mqttClient.subscribe(responseTopic);
-    mqttClient.on("message", responseHandler);
-
-    mqttClient.publish(publishTopic, requestMessage, options, (err) => {
-      if (err) return res.status(500).send("Failed to publish request message");
-      console.log(`Published request: ${requestMessage} to ${publishTopic}`);
-    });
-
-    const timeout = setTimeout(() => {
-      console.log(
-        `Request to service ${serviceId} timed out. Redirecting to another service...`,
-      );
-      mqttClient.removeListener("message", responseHandler);
-      mqttClient.unsubscribe(responseTopic);
-      retries++;
-      if (retries < maxRetries) {
-        const newServiceId = servicesList
-          .getRoundRobinService()
-          ?.getServiceId();
-        if (newServiceId) {
-          publishRequest(newServiceId);
-        } else {
-          res.status(500).send("No available services to handle the request");
-          console.log("No available services to handle the request\n");
-        }
-      } else {
-        res.status(500).send("Request timed out after multiple retries");
-        console.log("Request timed out after multiple retries\n");
-      }
-    }, timeoutDuration);
-  };
-  const initialServiceId = servicesList.getRoundRobinService()?.getServiceId();
-  if (initialServiceId) {
-    publishRequest(initialServiceId);
-  } else {
-    res.status(500).send("No available services to handle the request");
-    console.log("No available services to handle the request\n");
+broker.subscribe("heartbeat/+", (topic: string, message: Buffer) => {
+  const match = /^heartbeat\/(\w+)$/.exec(topic);
+  if (match && match[1]) {
+    const serviceType = match[1];
+    broker.fromHeartbeat(serviceType, message.toString());
   }
-}
-
-/**
- * Appoinment endpoints
- * Format:
- *   Endpoint: /appointment
- * 	 Body: { doctorId: <ObjectId>, startTime: <Date> }
- */
-// TODO: Auth
-app.post("/appointments", (req: Request, res: Response) => {
-  if (!req.body?.doctorId || !req.body?.startTime) {
-    res.status(400).send("Error: Invalid request");
-    console.log("Invalid request: ", req.body);
-    return;
-  }
-
-  mqttPublishWithResponse(req, res, "book", {
-    doctorId: req.body.doctorId,
-    startTime: req.body.startTime,
-  });
 });
 
-app.delete("/appointments", (req: Request, res: Response) => {
-  if (!req.body?.doctorId || !req.body?.startTime) {
-    res.status(400).send("Error: Invalid request");
-    console.log(req.body);
-    return;
+// Subscrive to live calendar updates
+// forward live update to corresponding socket namespace
+broker.subscribe("appointments/+", (topic: string, message: Buffer) => {
+  const match = /^appointments\/(\w+)$/g.exec(topic);
+  if (match && match.length == 2) {
+    console.log(`Live update: [${topic}]: ${message.toString()}`);
+    socket.emit(match[1], message.toString());
+    console.log(`Emitted to socket [${match[1]}]: ${message.toString()}`);
   }
-
-  mqttPublishWithResponse(req, res, "cancel", {
-    doctorId: req.body.doctorId,
-    startTime: req.body.startTime,
-  });
 });
+
+// Attach routed endpoints
+app.use("/", appointments);
+app.use("/", auth);
+app.use("/", clinics);
+app.use("/", doctors);
+app.use("/", slots);
 
 app.use("/", (req: Request, res: Response, next: NextFunction) => {
   res.send("API Gateway");
 });
 
-app.listen(port, () => {
+httpServer.listen(port, () => {
   console.log(`API Gateway listening at http://localhost:${port}`);
 });

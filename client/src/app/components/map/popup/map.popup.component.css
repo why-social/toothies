@@ -1,0 +1,32 @@
+.container {
+  padding: 2rem;
+  border-radius: var(--mat-sys-corner-large);
+  min-width: 200px;
+  box-sizing: border-box;
+  box-shadow: 0 3px 14px rgba(0, 0, 0, 0.4);
+  background: var(--mat-sys-background);
+  gap: 1rem;
+  display: flex;
+  flex-direction: column;
+  color: var(--mat-sys-on-background);
+}
+
+button {
+  width: fit-content;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+h2 {
+  font-family: Roboto;
+  margin: 0;
+  text-align: center;
+  width: 100%;
+}
+
+p {
+  font-family: Roboto;
+  margin: 0;
+  text-align: center;
+  width: 100%;
+}

@@ -1,0 +1,33 @@
+<mat-card appearance="outlined">
+  <mat-card-content>
+    <mat-card-title-group>
+      <mat-card-title>{{ booking.doctor.name }}</mat-card-title>
+    </mat-card-title-group>
+
+    <div class="schedule">
+      <mat-icon class="material-icons-outlined"> schedule </mat-icon>
+      {{
+        booking.start.toLocaleDateString("sv-se", {
+          month: "short",
+          day: "numeric",
+        }) +
+          " " +
+          booking.start.toLocaleTimeString("sv-se", {
+            hour: "2-digit",
+            minute: "2-digit",
+          }) +
+          " - " +
+          booking.end.toLocaleTimeString("sv-se", {
+            hour: "2-digit",
+            minute: "2-digit",
+          })
+      }}
+    </div>
+
+    <mat-card-actions>
+      <button mat-flat-button (click)="openCancelDialog()">
+        Cancel booking
+      </button>
+    </mat-card-actions>
+  </mat-card-content>
+</mat-card>

@@ -1,0 +1,31 @@
+* {
+  color: var(--mat-sys-on-surface);
+}
+
+mat-card-content {
+  box-sizing: border-box;
+}
+
+mat-card-actions {
+  flex-direction: row-reverse;
+}
+
+mat-card {
+  min-width: 300px;
+  background: var(--mat-sys-secondary-fixed-dim);
+}
+
+mat-card * {
+  color: var(--mat-sys-on-secondary);
+}
+
+button {
+  outline: 1px solid var(--mat-sys-on-primary) !important;
+}
+
+.schedule {
+  display: flex;
+  gap: 5px;
+  padding-top: 10px;
+  align-items: center;
+}

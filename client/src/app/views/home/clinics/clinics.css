@@ -1,0 +1,41 @@
+.container {
+  display: flex;
+  flex-direction: row;
+  min-height: 100%;
+  align-content: flex-start;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  padding: 1rem;
+  box-sizing: border-box;
+  gap: 1rem;
+}
+
+.mdc-linear-progress {
+  width: 100% !important;
+}
+
+.exception {
+  width: 100% !important;
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  color: var(--mat-sys-on-background);
+  gap: 1rem;
+  flex-direction: column;
+}
+
+.exception > button {
+  width: fit-content;
+}
+
+.container > * {
+  width: 100%;
+}
+
+@media screen and (min-width: 992px) {
+  .container > * {
+    width: calc(50% - 0.5rem);
+  }
+}

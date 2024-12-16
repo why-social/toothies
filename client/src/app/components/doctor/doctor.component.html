@@ -1,0 +1,19 @@
+<mat-card appearance="outlined">
+  <mat-card-content>
+    <mat-card-title-group>
+      <mat-card-title>{{ doctor.name }}</mat-card-title>
+      <mat-card-subtitle>{{ doctor.type }}</mat-card-subtitle>
+    </mat-card-title-group>
+
+    @if (typeof doctor.clinic == "object" && doctor.clinic.name) {
+      <div class="location">
+        <mat-icon class="material-icons-outlined"> location_on </mat-icon>
+        {{ doctor.clinic.name }}
+      </div>
+    }
+
+    <mat-card-actions>
+      <button mat-stroked-button (click)="book()">Book</button>
+    </mat-card-actions>
+  </mat-card-content>
+</mat-card>

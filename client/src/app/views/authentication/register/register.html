@@ -1,0 +1,143 @@
+@if (!registering) {
+  <div class="container">
+    <div class="section">
+      <div class="buttons login">
+        <span>Already have an account?</span>
+        <button mat-stroked-button (click)="router.navigateByUrl('/login')">
+          Log in
+        </button>
+      </div>
+    </div>
+    <mat-stepper orientation="vertical" [linear]="true" #stepper>
+      <mat-step [stepControl]="personnummer">
+        <form [formGroup]="personnummer">
+          <ng-template matStepLabel>Fill out your personnummer</ng-template>
+          <div class="section">
+            <mat-form-field>
+              <mat-label>Personnummer</mat-label>
+              <input
+                matInput
+                formControlName="personnummer"
+                placeholder="YYYYMMDD-0000"
+                required
+              />
+            </mat-form-field>
+            <div class="buttons">
+              <button
+                mat-button
+                matStepperNext
+                [disabled]="!this.personnummer.valid"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        </form>
+      </mat-step>
+      <mat-step [stepControl]="name">
+        <form [formGroup]="name">
+          <ng-template matStepLabel>Fill out your name</ng-template>
+          <div class="section">
+            <mat-form-field>
+              <mat-label>Name</mat-label>
+              <input
+                matInput
+                placeholder="Full name"
+                formControlName="name"
+                required
+              />
+            </mat-form-field>
+            <div class="buttons">
+              <button mat-button matStepperPrevious>Back</button>
+              <button mat-button matStepperNext [disabled]="!this.name.valid">
+                Next
+              </button>
+            </div>
+          </div>
+        </form>
+      </mat-step>
+      <mat-step [stepControl]="mail">
+        <form [formGroup]="mail">
+          <ng-template matStepLabel>Fill out your e-mail</ng-template>
+          <div class="section">
+            <span
+              >We'll use this to notify you of slot availability, cancellation,
+              etc.</span
+            >
+            <mat-form-field>
+              <mat-label>E-mail</mat-label>
+              <input
+                matInput
+                placeholder="user@exmaple.com"
+                formControlName="mail"
+                required
+              />
+            </mat-form-field>
+            <div class="buttons">
+              <button mat-button matStepperPrevious>Back</button>
+              <button mat-button matStepperNext [disabled]="!this.mail.valid">
+                Next
+              </button>
+            </div>
+          </div>
+        </form>
+      </mat-step>
+      <mat-step [stepControl]="password">
+        <form [formGroup]="password">
+          <ng-template matStepLabel>Fill out your password</ng-template>
+          <div class="section">
+            <mat-form-field>
+              <mat-label>Password</mat-label>
+              <input
+                matInput
+                (input)="invalidatePassword()"
+                type="password"
+                placeholder="Password"
+                formControlName="password"
+                required
+              />
+            </mat-form-field>
+            <mat-form-field>
+              <mat-label>Confirm password</mat-label>
+              <input
+                matInput
+                type="password"
+                placeholder="Password"
+                formControlName="confirm"
+                required
+              />
+            </mat-form-field>
+
+            @if (!this.passwordsMatch) {
+              <span>Passwords do not match</span>
+            }
+
+            <div class="buttons">
+              <button mat-button matStepperPrevious>Back</button>
+              <button
+                mat-button
+                matStepperNext
+                [disabled]="!this.passwordsMatch || !this.password.valid"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        </form>
+      </mat-step>
+      <mat-step>
+        <ng-template matStepLabel>Done</ng-template>
+        <div class="section">
+          <span>Review your data before submitting.</span>
+          <div class="buttons submit">
+            <button mat-button matStepperPrevious>Back</button>
+            <button mat-button (click)="stepper.reset()">Reset</button>
+            <button mat-flat-button (click)="submit()">Submit</button>
+          </div>
+        </div>
+      </mat-step>
+    </mat-stepper>
+  </div>
+} @else {
+  <mat-spinner></mat-spinner>
+}
