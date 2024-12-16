@@ -8,6 +8,7 @@
     "dev": "tsc && node dist/index.js"
   },
   "dependencies": {
+    "@toothies-org/mqtt-service-broker": "file:../../modules/mqtt-service-broker",
     "dockerode": "^4.0.2",
     "dotenv": "^16.4.5",
     "mqtt": "^5.10.2",

@@ -1,4 +1,4 @@
-import { BrokerConnection } from "./modules/broker/brokerConnection";
+import { ServiceBroker } from "@toothies-org/mqtt-service-broker";
 import { MongoClient, ObjectId } from "mongodb";
 import dotenv from "dotenv";
 import { sendEmail } from "./utils/sendEmail";
@@ -38,7 +38,7 @@ const notifyDoctor = async (message: Buffer) => {
     } else {
       console.error(e);
     }
-	console.log(`Malformed request: ${message}`);
+    console.log(`Malformed request: ${message}`);
     return;
   }
 
@@ -46,7 +46,12 @@ const notifyDoctor = async (message: Buffer) => {
     console.error(`Malformed request: ${message}`);
     return;
   }
-  if (!data.emailMessage || !data.emailMessage.subject || !data.emailMessage.text || !data.emailMessage.html) {
+  if (
+    !data.emailMessage ||
+    !data.emailMessage.subject ||
+    !data.emailMessage.text ||
+    !data.emailMessage.html
+  ) {
     console.error(`Missing required fields in request: ${message}`);
     return;
   }
@@ -55,36 +60,50 @@ const notifyDoctor = async (message: Buffer) => {
     _id: new ObjectId(data.userId),
   });
 
-  if(!doctor) {
-	console.error(`Doctor not found: ${message}`);
-	return;
+  if (!doctor) {
+    console.error(`Doctor not found: ${message}`);
+    return;
   }
 
-  if(!doctor.email) {
-	console.log(`Doctor ${doctor.name} does not have an email address`);
-	return;
+  if (!doctor.email) {
+    console.log(`Doctor ${doctor.name} does not have an email address`);
+    return;
   }
 
   // Send email
   try {
-	await sendEmail(doctor.email, doctor.name, data.emailMessage.subject, data.emailMessage.text, data.emailMessage.html);
-	console.log(`Email sent to doctor: ${doctor.email}\nEmail text: ${data.emailMessage.text}`);
+    await sendEmail(
+      doctor.email,
+      doctor.name,
+      data.emailMessage.subject,
+      data.emailMessage.text,
+      data.emailMessage.html,
+    );
+    console.log(
+      `Email sent to doctor: ${doctor.email}\nEmail text: ${data.emailMessage.text}`,
+    );
   } catch (e) {
-	console.error(`Failed to send email to doctor: ${doctor.email}`);
+    console.error(`Failed to send email to doctor: ${doctor.email}`);
   }
 };
 
 //-------------------- DEFINE BROKER --------------------
-const broker: BrokerConnection = new BrokerConnection("notifications", {
-	onFailed() {
-		process.exit(0);
-	},
-	onConnected() {
-		// TODO: topics must include serviceId
-		//serviceId/notifications/login
-		broker.subscribe("doctor", notifyDoctor);
-		//broker.subcscribe("user", notifyUser);
-	},
-});
-
-
+const broker: ServiceBroker = new ServiceBroker(
+  "notifications",
+  String(process.env.BROKER_ADDR),
+  {
+    username: String(process.env.MQTT_USERNAME),
+    password: String(process.env.MQTT_PASSWORD),
+  },
+  {
+    onFailed() {
+      process.exit(0);
+    },
+    onConnected() {
+      // TODO: topics must include serviceId
+      //serviceId/notifications/login
+      broker.subscribe("notifications/doctor", notifyDoctor, false);
+      //broker.subcscribe("user", notifyUser);
+    },
+  },
+);

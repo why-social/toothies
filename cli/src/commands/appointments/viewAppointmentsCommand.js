@@ -32,7 +32,6 @@ const viewAppointments = new Command("view")
 		console.log(chalk.yellow(`Fetching appointments for ${options.date}...`));
 		spinner.start();
 		let res = await makeRequest("get", `${process.env.API_URL}/doctor/appointments/?date=${options.date}&doctorId=${doctorId}`, "Error fetching appointments:");
-		res = res.data;
 		const modifiedDataPrettified = res.data.map((appointment) => {
 			return {
 				"Start time": new Date(appointment.startTime).toLocaleString(),
@@ -61,7 +60,6 @@ const viewAppointments = new Command("view")
 		console.log(chalk.yellow(`Fetching appointments for ${options.patient}...`));
 		spinner.start();
 		let res = await makeRequest("get", `${process.env.API_URL}/doctor/appointments/?patientName=${options.patient}&doctorId=${doctorId}`, "Error fetching appointments:");
-		res = res.data;
 		const modifiedDataPrettified = res.data.map((appointment) => {
 			return {
 				"Start time": new Date(appointment.startTime).toLocaleString(),
@@ -89,7 +87,6 @@ const viewAppointments = new Command("view")
 		console.log(chalk.yellow("Fetching all upcoming appointments..."));
 		spinner.start();
 		let res = await makeRequest("get", `${process.env.API_URL}/doctor/appointments/upcoming`, "Error fetching appointments:");
-		res = res.data;
 		const modifiedDataPrettified = res.data.map((appointment) => {
 			return {
 				"Start time": new Date(appointment.startTime).toLocaleString(),

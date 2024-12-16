@@ -41,7 +41,7 @@ const mqttOptions: IClientOptions = {
 
 const mqttClient = mqtt.connect(
   "tls://0fc2e0e6e10649f790f059e77c606dfe.s1.eu.hivemq.cloud:8883",
-  mqttOptions
+  mqttOptions,
 );
 
 const serviceId: string = process.env.TEST_TOPIC ? `test` : uniqid();
@@ -50,15 +50,25 @@ const heartBeatInterval = 10000;
 
 console.log(`Service ${serviceId} is running, connecting to MQTT broker...`);
 
+function publishResponse(reqId: string, data: object) {
+  const message = JSON.stringify({
+    reqId,
+    timestamp: Date.now(),
+    data,
+  });
+  mqttClient.publish(`res/${reqId}`, message);
+  console.log(`Published response to res/${reqId}:\n${message}`);
+}
+
 mqttClient.on("connect", async () => {
   console.log("Connected to MQTT broker");
 
   containerName = await getContainerName();
 
   // Subscribe to request topics
-  mqttClient.subscribe(serviceId + "/clinics/#", (err) => {
+  mqttClient.subscribe(`${serviceId}/clinics/#`, (err) => {
     if (err) return console.error("Failed to subscribe to request topic");
-    console.log(`Subscribed to clinics/#`);
+    console.log(`Subscribed to ${serviceId}/clinics/#`);
   });
 
   mqttClient.subscribe(serviceId + "/appointments/#", (err) => {
@@ -115,7 +125,7 @@ mqttClient.on("message", async (topic, message) => {
   const params = /^\w+\/(\w+)\/(\w+)$/g.exec(topic);
   if (params?.length != 3) {
     console.error(
-      "Invalid topic. Expected format: <instanceId>/<endpoint>/<action>"
+      "Invalid topic. Expected format: <instanceId>/<endpoint>/<action>",
     );
     return;
   }
@@ -123,6 +133,7 @@ mqttClient.on("message", async (topic, message) => {
   const action = params[2];
   const payload = JSON.parse(message.toString());
   payload.action = action;
+  const data = payload.data;
 
   // handle requests
   switch (endpoint) {
@@ -131,10 +142,10 @@ mqttClient.on("message", async (topic, message) => {
         case "get": {
           let res;
           // TODO project only relevant fields
-          if (payload.clinicId) {
+          if (data.clinicId) {
             res = await clinics
               .aggregate([
-                { $match: { _id: new ObjectId(payload.clinicId) } },
+                { $match: { _id: new ObjectId(data.clinicId) } },
                 {
                   $lookup: {
                     from: "doctors",
@@ -149,8 +160,7 @@ mqttClient.on("message", async (topic, message) => {
             res = await clinics.find().toArray();
           }
 
-          const responseTopic = `${serviceId}/res/${payload.timestamp}`;
-          mqttClient.publish(responseTopic, JSON.stringify(res));
+          publishResponse(payload.reqId, res);
         }
       }
     }
@@ -161,8 +171,8 @@ mqttClient.on("message", async (topic, message) => {
         break;
       }
 
-      if (payload.doctorId) payload.doctorId = new ObjectId(payload.doctorId);
-      if (payload.userId) payload.userId = new ObjectId(payload.userId);
+      if (data.doctorId) payload.data.doctorId = new ObjectId(data.doctorId);
+      if (data.userId) payload.data.userId = new ObjectId(data.userId);
 
       await handleAppointmentsRequest(payload);
       break;
@@ -187,30 +197,28 @@ mqttClient.on("message", async (topic, message) => {
 // TODO: explicitly close connections
 
 async function handleAppointmentsRequest(payload: any) {
-  const responseTopic = `${serviceId}/res/${payload.timestamp}`;
   let slot;
 
   switch (payload.action) {
     case "get":
-      if (!payload.doctorId) {
+      if (!payload.data.doctorId) {
         console.error("Invalid query:");
         console.log(payload);
         break;
       }
       const doctorSlots = await slots
         .find(
-          { doctorId: payload.doctorId },
-          { projection: { _id: 0, doctorId: 0 } }
+          { doctorId: payload.data.doctorId },
+          { projection: { _id: 0, doctorId: 0 } },
         )
         .toArray();
 
-      const doctor = await doctors.findOne({ _id: payload.doctorId });
+      const doctor = await doctors.findOne({ _id: payload.data.doctorId });
       const clinic = await clinics.findOne({ _id: doctor?.clinic });
       if (!doctor || !clinic) {
-        mqttClient.publish(
-          responseTopic,
-          "Could not fetch doctor data for slot"
-        );
+        publishResponse(payload.reqId, {
+          message: "Could not fetch doctor data for slot",
+        });
         break;
       }
 
@@ -226,119 +234,91 @@ async function handleAppointmentsRequest(payload: any) {
         slots: doctorSlots,
       };
 
-      console.log(res);
-      mqttClient.publish(responseTopic, JSON.stringify(res));
-      console.log("Published ", res);
+      publishResponse(payload.reqId, res);
       break;
 
     case "book": // book a slot
-      if (!payload.startTime || !payload.doctorId) {
+      if (!payload.data.startTime || !payload.data.doctorId) {
         console.error("Invalid query:");
         console.log(payload);
         break;
       }
 
-      payload.startTime = new Date(payload.startTime);
+      payload.data.startTime = new Date(payload.data.startTime);
       slot = await slots.findOne({
-        doctorId: payload.doctorId,
-        startTime: payload.startTime,
+        doctorId: payload.data.doctorId,
+        startTime: payload.data.startTime,
       });
       if (!slot) {
         console.error("Slot does not exist");
-        mqttClient.publish(
-          responseTopic,
-          JSON.stringify({
-            timestamp: payload.timestamp,
-            message: "Error: Slot does not exist",
-          })
-        );
+        publishResponse(payload.reqId, {
+          message: "Error: Slot does not exist",
+        });
         return;
       }
       if (slot.isBooked) {
         console.error("Slot already booked");
         console.log(payload);
         console.log(slot);
-        mqttClient.publish(
-          responseTopic,
-          JSON.stringify({
-            timestamp: payload.timestamp,
-            message: "Error: Slot already booked",
-          })
-        );
+        publishResponse(payload.reqId, {
+          message: "Error: Slot already booked",
+        });
         return;
       }
 
       slot.isBooked = true;
-      slot.bookedBy = payload.userId;
+      slot.bookedBy = payload.data.userId;
       await slots.updateOne(
         { _id: slot._id },
-        { $set: { isBooked: true, bookedBy: payload.userId } }
+        { $set: { isBooked: true, bookedBy: payload.data.userId } },
       );
 
-      mqttClient.publish(
-        responseTopic,
-        JSON.stringify({
-          timestamp: payload.timestamp,
-          message: "Slot successfully booked",
-        })
-      );
+      publishResponse(payload.reqId, { message: "Slot successfully booked" });
 
       // send live update to open calendars
       mqttClient.publish(
-        `appointments/${payload.doctorId}`,
-        JSON.stringify(slot)
+        `appointments/${payload.data.doctorId}`,
+        JSON.stringify(slot),
       );
-      console.log(`Slot successfully booked: ${payload.startTime}`);
+      console.log(`Slot successfully booked: ${payload.data.startTime}`);
       break;
 
     case "cancel": // cancel a slot
-      if (!payload.startTime || !payload.doctorId) {
+      if (!payload.data.startTime || !payload.data.doctorId) {
         console.error("Invalid query:");
         console.log(payload);
         break;
       }
 
-      payload.startTime = new Date(payload.startTime);
+      payload.data.startTime = new Date(payload.data.startTime);
       slot = await slots.findOne({
-        doctorId: payload.doctorId,
-        startTime: payload.startTime,
+        doctorId: payload.data.doctorId,
+        startTime: payload.data.startTime,
       });
       if (!slot) {
         console.error("Slot does not exist");
-        mqttClient.publish(
-          responseTopic,
-          JSON.stringify({
-            timestamp: payload.timestamp,
-            message: "Error: Slot does not exist",
-          })
-        );
+        publishResponse(payload.reqId, {
+          message: "Error: Slot does not exist",
+        });
         return;
       }
       if (!slot.isBooked) {
         console.error("Slot not booked");
         console.log(payload);
         console.log(slot);
-        mqttClient.publish(
-          responseTopic,
-          JSON.stringify({
-            timestamp: payload.timestamp,
-            message: "Error: Cannot cancel a non-booked slot",
-          })
-        );
+        publishResponse(payload.reqId, {
+          message: "Error: Cannot cancel a non-booked slot",
+        });
         return;
-      } else if (!slot.bookedBy.equals(payload.userId)) {
+      } else if (!slot.bookedBy.equals(payload.data.userId)) {
         console.error("Slot booked by someone else");
         console.log(payload);
         console.log(slot);
         console.log(slot.bookedBy);
-        console.log(payload.userId);
-        mqttClient.publish(
-          responseTopic,
-          JSON.stringify({
-            timestamp: payload.timestamp,
-            message: "Error: Cannot cancel someone else's slot",
-          })
-        );
+        console.log(payload.data.userId);
+        publishResponse(payload.reqId, {
+          message: "Error: Cannot cancel someone else's slot",
+        });
         return;
       }
 
@@ -347,75 +327,80 @@ async function handleAppointmentsRequest(payload: any) {
 
       await slots.updateOne(
         { _id: slot._id },
-        { $set: { isBooked: false, bookedBy: null } }
+        { $set: { isBooked: false, bookedBy: null } },
       );
+      publishResponse(payload.reqId, {
+        message: "Booking successfully cancelled",
+      });
       mqttClient.publish(
-        responseTopic,
-        JSON.stringify({
-          message: "Booking successfully cancelled",
-        })
-      );
-      mqttClient.publish(
-        `appointments/${payload.doctorId}`,
-        JSON.stringify(slot)
+        `appointments/${payload.data.doctorId}`,
+        JSON.stringify(slot),
       );
 
       // Notify the doctor that a booking has been cancelled
-      mqttClient.publish("notifications/doctor", JSON.stringify({
-        timestamp: new Date(),
-        reqId: uniqid(),
-        data: {
-          userId: payload.doctorId,
-          emailMessage: {
-            subject: "Booking Cancelled by Patient",
-            text: `A booking has been cancelled by patient for ${payload.startTime}`,
-            html: `<p>A booking has been cancelled by patient for ${payload.startTime}</p>`
-          }
-        }
-      }));
+      mqttClient.publish(
+        "notifications/doctor",
+        JSON.stringify({
+          timestamp: new Date(),
+          reqId: uniqid(),
+          data: {
+            userId: payload.data.doctorId,
+            emailMessage: {
+              subject: "Booking Cancelled by Patient",
+              text: `A booking has been cancelled by patient for ${payload.data.startTime}`,
+              html: `<p>A booking has been cancelled by patient for ${payload.data.startTime}</p>`,
+            },
+          },
+        }),
+      );
 
-      console.log(`Booking successfully cancelled: ${payload.startTime}`);
+      console.log(`Booking successfully cancelled: ${payload.data.startTime}`);
       break;
 
     case "getDocDate": // get all booked slots for a doctor on a specific day
-      if (!payload.doctorId) {
+      if (!payload.data.doctorId) {
         console.error("Invalid query:");
         console.log(payload);
+        publishResponse(payload.reqId, { message: "Invalid request" });
         break;
       }
 
-      getAppointmentsForDoctorOnDate(payload, responseTopic);
+      getAppointmentsForDoctorOnDate(payload);
       break;
 
     case "getDocUpcoming":
-      if (!payload.doctorId) {
+      if (!payload.data.doctorId) {
         console.error("Invalid query:");
         console.log(payload);
+        publishResponse(payload.reqId, { message: "Invalid request" });
         break;
       }
 
-      getAppointmentsForDoctorUpcoming(payload, responseTopic);
+      getAppointmentsForDoctorUpcoming(payload);
       break;
 
     case "getDocPatient":
-      if (!payload.doctorId) {
+      if (!payload.data.doctorId) {
         console.error("Invalid query:");
         console.log(payload);
+        publishResponse(payload.reqId, { message: "Invalid request" });
         break;
       }
 
-      getAppointmentsForDoctorPerPatient(payload, responseTopic);
+      getAppointmentsForDoctorPerPatient(payload);
+      break;
 
     case "getUser":
-      console.log(payload.userId);
+      console.log(payload.data.userId);
 
-      if (!payload.userId) {
+      if (!payload.data.userId) {
         console.error("Invalid query");
         console.log(payload);
+        publishResponse(payload.reqId, { message: "Invalid request" });
         break;
       }
 
-      getAppointmentsForUser(payload, responseTopic);
+      getAppointmentsForUser(payload);
       break;
 
     default:
@@ -425,7 +410,6 @@ async function handleAppointmentsRequest(payload: any) {
 }
 
 async function getAllDoctors(payload: any) {
-  const responseTopic = `${serviceId}/res/${payload.timestamp}`;
   let allDoctors = await doctors
     .aggregate([
       { $match: { _id: { $exists: true } } },
@@ -453,21 +437,17 @@ async function getAllDoctors(payload: any) {
       },
     ])
     .toArray();
-  mqttClient.publish(responseTopic, JSON.stringify(allDoctors));
+  publishResponse(payload.reqId, allDoctors);
 }
 
 async function handleSlotRequest(payload: any) {
-  const responseTopic = `${serviceId}/res/${payload.timestamp}`;
-  payload.responseTopic = responseTopic;
+  if (!payload.data.doctorId || !payload.data.body.startDate) {
+    publishResponse(payload.reqId, { message: "Invalid request" });
+    return;
+  }
 
-  if (!payload.doctorId || !payload.body.startDate)
-    return mqttClient.publish(
-      responseTopic,
-      JSON.stringify({ message: "Invalid request" })
-    );
-
-  const startDate = new Date(Number(payload.body.startDate));
-  const doctorId = new ObjectId(payload.doctorId);
+  const startDate = new Date(Number(payload.data.body.startDate));
+  const doctorId = new ObjectId(payload.data.doctorId);
 
   // TODO (once doctors are added to doctors collection) Check if the doctor exists
   // const doctor = await doctors.findOne({_id: new Object(payload.doctorId)});
@@ -475,45 +455,39 @@ async function handleSlotRequest(payload: any) {
   // 	return mqttClient.publish(payload.responseTopic, JSON.stringify({message: "Doctor not found"}));
 
   // Check if the start time is before the current timme
-  if (payload.body.startDate <= new Date()) {
-    return mqttClient.publish(
-      responseTopic,
-      JSON.stringify({ message: "Invalid time range" })
-    );
+  if (payload.data.body.startDate <= new Date()) {
+    publishResponse(payload.reqId, { message: "Invalid time range" });
+    return;
   }
 
   // Check if the time is between 8 am and 8 pm
-  if (startDate.getHours() < 8 || startDate.getHours() > 20)
-    return mqttClient.publish(
-      responseTopic,
-      JSON.stringify({ message: "Invalid time range" })
-    );
+  if (startDate.getHours() < 8 || startDate.getHours() > 20) {
+    publishResponse(payload.reqId, { message: "Invalid time range" });
+    return;
+  }
 
   let endDate;
 
-  if (payload.body.endDate) {
-    endDate = new Date(Number(payload.body.endDate));
+  if (payload.data.body.endDate) {
+    endDate = new Date(Number(payload.data.body.endDate));
 
     // Check if the start time is before the end time
-    if (payload.body.startDate >= payload.body.endDate)
-      return mqttClient.publish(
-        responseTopic,
-        JSON.stringify({ message: "Invalid time range" })
-      );
+    if (payload.data.body.startDate >= payload.data.body.endDate) {
+      publishResponse(payload.reqId, { message: "Invalid time range" });
+      return;
+    }
 
     // Check if the start time is before the current time
-    if (payload.body.startDate <= new Date())
-      return mqttClient.publish(
-        responseTopic,
-        JSON.stringify({ message: "Invalid time range" })
-      );
+    if (payload.data.body.startDate <= new Date()) {
+      publishResponse(payload.reqId, { message: "Invalid time range" });
+      return;
+    }
 
     // Check if start time and end time are in the same day
-    if (startDate.getDate() != endDate.getDate())
-      return mqttClient.publish(
-        responseTopic,
-        JSON.stringify({ message: "Invalid time range" })
-      );
+    if (startDate.getDate() != endDate.getDate()) {
+      publishResponse(payload.reqId, { message: "Invalid time range" });
+      return;
+    }
 
     // Check if the slot already exists
     const slotExists = await slots.findOne({
@@ -521,11 +495,10 @@ async function handleSlotRequest(payload: any) {
       startTime: startDate,
       endTime: endDate,
     });
-    if (slotExists)
-      return mqttClient.publish(
-        responseTopic,
-        JSON.stringify({ message: "Slot already exists" })
-      );
+    if (slotExists) {
+      publishResponse(payload.reqId, { message: "Slot already exists" });
+      return;
+    }
 
     // Check if the slot overlaps with another slot
     const overlappingSlot = await slots.findOne({
@@ -533,29 +506,27 @@ async function handleSlotRequest(payload: any) {
       startTime: { $lt: endDate },
       endTime: { $gt: startDate },
     });
-    if (overlappingSlot)
-      return mqttClient.publish(
-        responseTopic,
-        JSON.stringify({ message: "Slot overlaps with another slot" })
-      );
+    if (overlappingSlot) {
+      publishResponse(payload.reqId, {
+        message: "Slot overlaps with another slot",
+      });
+      return;
+    }
 
     // Check if start time is within doctor's working hours (8am - 8pm)
     const startHour = startDate.getHours();
     const endHour = endDate.getHours();
-    if (startHour < 8 || endHour > 20)
-      return mqttClient.publish(
-        payload.responseTopic,
-        JSON.stringify({ message: "Slot outside working hours" })
-      );
+    if (startHour < 8 || endHour > 20) {
+      publishResponse(payload.reqId, { message: "Slot outside working hours" });
+      return;
+    }
   }
 
   switch (payload.action) {
     case "create":
       if (!endDate) {
-        return mqttClient.publish(
-          payload.responseTopic,
-          JSON.stringify({ message: "Invalid request" })
-        );
+        publishResponse(payload.reqId, { message: "Invalid request" });
+        return;
       }
       createSlot(payload, doctorId, startDate, endDate);
       break;
@@ -564,10 +535,8 @@ async function handleSlotRequest(payload: any) {
       break;
     case "edit":
       if (!endDate) {
-        return mqttClient.publish(
-          payload.responseTopic,
-          JSON.stringify({ message: "Invalid request" })
-        );
+        publishResponse(payload.reqId, { message: "Invalid request" });
+        return;
       }
       editSlot(payload, doctorId, startDate, endDate);
       break;
@@ -578,7 +547,7 @@ async function createSlot(
   payload: any,
   doctorId: ObjectId,
   startDate: Date,
-  endDate: Date
+  endDate: Date,
 ) {
   const slot = {
     doctorId: doctorId,
@@ -588,10 +557,7 @@ async function createSlot(
     test: true,
   };
   await slots.insertOne(slot);
-  mqttClient.publish(
-    payload.responseTopic,
-    JSON.stringify({ message: "Slot created" })
-  );
+  publishResponse(payload.reqId, { message: "Slot created" });
 }
 
 async function deleteSlot(payload: any, doctorId: ObjectId, startDate: Date) {
@@ -601,70 +567,59 @@ async function deleteSlot(payload: any, doctorId: ObjectId, startDate: Date) {
   });
 
   // Check if the slot exists
-  if (!slot)
-    return mqttClient.publish(
-      payload.responseTopic,
-      JSON.stringify({ message: "Slot not found" })
-    );
+  if (!slot) {
+    publishResponse(payload.reqId, { message: "Slot not found" });
+    return;
+  }
 
   await slots.deleteOne({ _id: slot._id });
-  mqttClient.publish(
-    payload.responseTopic,
-    JSON.stringify({ message: "Slot deleted" })
-  );
+  publishResponse(payload.reqId, { message: "Slot deleted" });
 }
 
 async function editSlot(
   payload: any,
   doctorId: ObjectId,
   startDate: Date,
-  endDate: Date
+  endDate: Date,
 ) {
-  if (!payload.body.oldStartDate)
-    return mqttClient.publish(
-      payload.responseTopic,
-      JSON.stringify({ message: "Invalid request" })
-    );
+  if (!payload.data.body.oldStartDate) {
+    publishResponse(payload.reqId, { message: "Invalid request" });
+    return;
+  }
 
-  const oldStartDate = new Date(Number(payload.body.oldStartDate));
+  const oldStartDate = new Date(Number(payload.data.body.oldStartDate));
 
   // Find the slot to edit
   const slot = await slots.findOne({
     doctorId: doctorId,
     startTime: oldStartDate,
   });
-  if (!slot)
-    return mqttClient.publish(
-      payload.responseTopic,
-      JSON.stringify({ message: "Slot not found" })
-    );
+  if (!slot) {
+    publishResponse(payload.reqId, { message: "Slot not found" });
+    return;
+  }
 
   // Check if the slot is booked
-  if (slot.isBooked || slot.bookedBy)
-    return mqttClient.publish(
-      payload.responseTopic,
-      JSON.stringify({ message: "Unable to update, slot is booked" })
-    );
+  if (slot.isBooked || slot.bookedBy) {
+    publishResponse(payload.reqId, {
+      message: "Unable to update, slot is booked",
+    });
+    return;
+  }
 
   // Edit the slot
   slot.startTime = startDate;
   slot.endTime = endDate;
   await slots.updateOne(
     { _id: slot._id },
-    { $set: { startTime: startDate, endTime: endDate } }
+    { $set: { startTime: startDate, endTime: endDate } },
   );
-  mqttClient.publish(
-    payload.responseTopic,
-    JSON.stringify({ message: "Slot edited" })
-  );
+  publishResponse(payload.reqId, { message: "Slot edited" });
 }
 
-async function getAppointmentsForDoctorOnDate(
-  payload: any,
-  responseTopic: string
-) {
-  const doctorId = new ObjectId(payload.doctorId);
-  const date = new Date(payload.date);
+async function getAppointmentsForDoctorOnDate(payload: any) {
+  const doctorId = new ObjectId(payload.data.doctorId);
+  const date = new Date(payload.data.date);
 
   // Set the start of the day (00:00:00)
   const startOfDay = new Date(date.setHours(0, 0, 0, 0));
@@ -706,18 +661,11 @@ async function getAppointmentsForDoctorOnDate(
     ])
     .toArray();
 
-  const res = JSON.stringify({
-    data: dateAppointments,
-  });
-
-  mqttClient.publish(responseTopic, res);
+  publishResponse(payload.reqId, dateAppointments);
 }
 
-async function getAppointmentsForDoctorUpcoming(
-  payload: any,
-  responseTopic: string
-) {
-  const doctorId = new ObjectId(payload.doctorId);
+async function getAppointmentsForDoctorUpcoming(payload: any) {
+  const doctorId = new ObjectId(payload.data.doctorId);
   const startDate = new Date();
 
   const upcomingAppointments = await slots
@@ -757,25 +705,17 @@ async function getAppointmentsForDoctorUpcoming(
     ])
     .toArray();
 
-  const res = JSON.stringify({
-    data: upcomingAppointments,
-  });
-
-  mqttClient.publish(responseTopic, res);
+  publishResponse(payload.reqId, upcomingAppointments);
 }
 
-async function getAppointmentsForDoctorPerPatient(
-  payload: any,
-  responseTopic: string
-) {
-  const doctorId = new ObjectId(payload.doctorId);
-  const patientName = payload.patientName;
+async function getAppointmentsForDoctorPerPatient(payload: any) {
+  const reqId = payload.reqId;
+  const doctorId = new ObjectId(payload.data.doctorId);
+  const patientName = payload.data.patientName;
   const patient = await users.findOne({ name: patientName });
   if (!patient) {
-    return mqttClient.publish(
-      responseTopic,
-      JSON.stringify({ message: "Patient not found" })
-    );
+    publishResponse(reqId, { message: "Patient not found" });
+    return;
   }
   const patientId = patient._id;
 
@@ -791,15 +731,12 @@ async function getAppointmentsForDoctorPerPatient(
     return appointment;
   });
 
-  const res = JSON.stringify({
-    data: appointmentsWithNames,
-  });
-
-  mqttClient.publish(responseTopic, res);
+  publishResponse(reqId, appointmentsWithNames);
 }
 
-async function getAppointmentsForUser(payload: any, responseTopic: string) {
-  const userId = new ObjectId(payload.userId);
+async function getAppointmentsForUser(payload: any) {
+  const reqId = payload.reqId;
+  const userId = new ObjectId(payload.data.userId);
   const userAppointments = await slots
     .aggregate([
       {
@@ -836,5 +773,5 @@ async function getAppointmentsForUser(payload: any, responseTopic: string) {
     ])
     .toArray();
 
-  mqttClient.publish(responseTopic, JSON.stringify(userAppointments));
+  publishResponse(reqId, userAppointments);
 }

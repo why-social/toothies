@@ -1,4 +1,4 @@
-import { BrokerConnection } from "./modules/broker/brokerConnection";
+import { ServiceBroker } from "@toothies-org/mqtt-service-broker";
 import { MongoClient, ObjectId } from "mongodb";
 import dotenv from "dotenv";
 import { sign, PrivateKey } from "jsonwebtoken";
@@ -31,7 +31,7 @@ function createUserToken(user: User) {
       name: user.name,
     },
     jwtKey,
-    { expiresIn: "7d" }
+    { expiresIn: "7d" },
   );
 }
 
@@ -67,7 +67,7 @@ const authenticateUser = async (message: Buffer) => {
   try {
     const payload = JSON.parse(message.toString());
     data = payload.data;
-    reqId = payload.timestamp; // TODO change to reqId
+    reqId = payload.reqId;
     timestamp = payload.timestamp;
   } catch (e) {
     if (e instanceof Error) {
@@ -117,7 +117,7 @@ const createUser = async (message: Buffer) => {
   try {
     const payload = JSON.parse(message.toString());
     data = payload.data;
-    reqId = payload.timestamp; // TODO change to reqId
+    reqId = payload.reqId;
     timestamp = payload.timestamp;
   } catch (e) {
     if (e instanceof Error) {
@@ -181,13 +181,21 @@ const createUser = async (message: Buffer) => {
 };
 
 // -------------------- DEFINE BROKER --------------------
-const broker: BrokerConnection = new BrokerConnection("accounts", {
-  onFailed() {
-    process.exit(0);
+const broker: ServiceBroker = new ServiceBroker(
+  "accounts",
+  String(process.env.BROKER_ADDR),
+  {
+    username: String(process.env.MQTT_USERNAME),
+    password: String(process.env.MQTT_PASSWORD),
   },
-  onConnected() {
-    // TODO: topics must include serviceId
-    broker.subscribe("login", authenticateUser);
-    broker.subscribe("register", createUser);
+  {
+    onFailed() {
+      process.exit(0);
+    },
+    onConnected() {
+      // TODO: topics must include serviceId
+      broker.subscribe("login", authenticateUser);
+      broker.subscribe("register", createUser);
+    },
   },
-});
+);

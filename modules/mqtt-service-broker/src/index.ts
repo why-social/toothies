@@ -4,21 +4,15 @@ import matchTopic = require("mqtt-match");
 import { BrokerLifecycleListener } from "./brokerLifecycleListener";
 
 import uniqid from "uniqid";
-import dotenv from "dotenv";
 
-dotenv.config();
-
-export class BrokerConnection {
+export class ServiceBroker {
   private static readonly PING_ECHO_TIMEOUT = 3_000;
   private static readonly HEARTBEAT_INTERVAL = 10_000;
-  private static readonly MQTT_OPTIONS: IClientOptions = {
-    username: String(process.env.MQTT_USERNAME),
-    password: String(process.env.MQTT_PASSWORD),
-  };
 
   private readonly mqttClient: MqttClient;
+  private readonly resTopicPrefix: string;
 
-  private readonly uuid: String;
+  public readonly uuid: String;
   private readonly name: String;
   private readonly hearbeatMessage: string;
 
@@ -27,13 +21,19 @@ export class BrokerConnection {
 
   private ready: boolean;
 
-  constructor(name: String, lifecycleListener: BrokerLifecycleListener) {
+  constructor(
+    name: String,
+    address: string,
+    options: IClientOptions,
+    lifecycleListener: BrokerLifecycleListener,
+  ) {
     this.name = name;
     this.uuid = String(uniqid());
     this.hearbeatMessage = JSON.stringify({
       serviceId: this.uuid,
       containerName: this.name,
     });
+    this.resTopicPrefix = `res/`;
     this.ready = false;
 
     this.lifecycleListener = lifecycleListener;
@@ -78,7 +78,7 @@ export class BrokerConnection {
                 );
             },
           );
-        }, BrokerConnection.HEARTBEAT_INTERVAL);
+        }, ServiceBroker.HEARTBEAT_INTERVAL);
 
         console.log("Connected to MQTT Broker.");
         this.ready = true;
@@ -86,7 +86,7 @@ export class BrokerConnection {
         if (this.lifecycleListener) {
           this.lifecycleListener.onConnected();
         }
-      }, BrokerConnection.PING_ECHO_TIMEOUT);
+      }, ServiceBroker.PING_ECHO_TIMEOUT);
     };
 
     const abortConnection = () => {
@@ -100,10 +100,7 @@ export class BrokerConnection {
       }
     };
 
-    this.mqttClient = mqtt.connect(
-      String(process.env.BROKER_ADDR),
-      BrokerConnection.MQTT_OPTIONS,
-    );
+    this.mqttClient = mqtt.connect(address, options);
 
     this.mqttClient.on("connect", connectionSuccessHandler);
     this.mqttClient.on("error", abortConnection);
@@ -121,12 +118,17 @@ export class BrokerConnection {
     });
   };
 
-  public subscribe(topic: string, callback: (message: Buffer) => void) {
+  public subscribe(
+    topic: string,
+    callback: (message: Buffer) => void,
+    includeId: boolean = true,
+  ) {
     if (this.ready) {
-      topic = `${this.name}/${topic}`;
-
+      topic = includeId ? `${this.uuid}/${topic}` : topic;
       this.mqttClient.subscribe(topic);
       this.messageListeners.set(topic, callback);
+
+      console.log(`Subscribed to [${topic}]`);
     } else {
       console.warn("Client tried to subscribe before acknowledgement.");
     }
@@ -148,5 +150,25 @@ export class BrokerConnection {
     } else {
       console.warn("Client tried to publish before acknowledgement.");
     }
+  }
+
+  public publishResponse(reqId: string, data: object) {
+    const message = JSON.stringify({
+      reqId,
+      timestamp: Date.now(),
+      data,
+    });
+    this.publish(this.resTopicPrefix + reqId, message);
+  }
+
+  public publishError(reqId: string, message: string) {
+    const res = JSON.stringify({
+      reqId,
+      timestamp: Date.now(),
+      data: {
+        message: message,
+      },
+    });
+    this.publish(this.resTopicPrefix + reqId, res);
   }
 }
