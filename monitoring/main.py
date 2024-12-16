@@ -91,6 +91,7 @@ app.title = "Toothies Monitoring"
 # Dash Layout
 app.layout = html.Div([
     html.H1("MQTT Stats", style={"textAlign": "center"}),
+    html.Button("toggle interval", id="button"),
     html.Div([
         dcc.Graph(id="heartbeats-graph"),
     ]),
@@ -104,6 +105,18 @@ app.layout = html.Div([
     ),
     dcc.Store(id="data-store"),
 ])
+
+
+@callback(
+    [Output("interval-component", "disabled"),
+     Output("button", "children")],
+    [Input("button", "n_clicks")],
+    [State("interval-component", "disabled")],
+)
+def toggle_interval(n, disabled):
+    if n:
+        return not disabled, "Resume Updates" if not disabled else "Pause Updates"
+    return disabled, "Pause Updates"
 
 @callback(
     Output("data-store", "data"),
