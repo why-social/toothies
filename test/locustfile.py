@@ -61,7 +61,17 @@ class BookingTests(HttpUser):
         # create a test doctor and slots for all test users
         BookingTests.db_conn = BookingTests.connect_db()
         db = BookingTests.db_conn['primary']
-        BookingTests.doctor_id = db['doctors'].insert_one({"name": "STRESS TEST"}).inserted_id
+
+        clinic_id = db["clinics"].aggregate([{ '$sample': { 'size': 1 } }]).next()["_id"]
+        print("CLINIC ID"+str(clinic_id))
+        doctor = {
+            "name": "STRESS TEST",
+            "email": "locust@test.gg",
+            "clinic": clinic_id,
+            "type": "TEST"
+        }
+
+        BookingTests.doctor_id = db['doctors'].insert_one(doctor).inserted_id
         BookingTests.generate_slots(db, BookingTests.doctor_id, test_date.year, test_date.month, test_date.day)
         time.sleep(0.1) # be nice to Atlas
 
@@ -74,6 +84,7 @@ class BookingTests(HttpUser):
             deleted_docs = db["doctors"].delete_one({"_id": BookingTests.doctor_id}).deleted_count
             print(f"Deleted {deleted_docs} doctor ({BookingTests.doctor_id}) and {deleted_slots} slots")
             BookingTests.db_conn.close()
+            print("Closed DB connection")
         elif BookingTests.db_conn:
             print("No doctor ID found")
             BookingTests.db_conn.close()
