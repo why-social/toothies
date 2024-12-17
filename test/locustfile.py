@@ -36,7 +36,7 @@ class BookingTests(HttpUser):
     def connect_db():
         uri = os.getenv("ATLAS_CONN_STR")
         # Create a new client and connect to the server
-        client = MongoClient(uri, server_api=ServerApi('1'))
+        client = MongoClient(uri, server_api=ServerApi('1'), maxPoolSize=50, minPoolSize=1)
         # Send a ping to confirm a successful connection
         client.admin.command('ping')
         print("Successfully connected to MongoDB!")
