@@ -5,7 +5,6 @@ from datetime import timedelta as delta
 from locust import HttpUser, task, between, events
 from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
-from locust.runners import MasterRunner
 from dotenv import load_dotenv
 import os
 
@@ -25,6 +24,7 @@ class BookingTests(HttpUser):
 
     db_conn = None
     doctor_id = None
+    free_slots = []
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -44,12 +44,20 @@ class BookingTests(HttpUser):
         return client
 
     @staticmethod
-    def generate_slots(db, id, y, m, d):
-        test_date = date(y, m, d).replace(hour=MIN_HOUR)
-        db["slots"].insert_many([
-            {"doctorId": id, "startTime": test_date + i*step, "endTime": test_date + (i+1)*step}
-            for i in range(0, (MAX_HOUR-MIN_HOUR)*60//STEP_MINUTES)
-        ])
+    def generate_slots(db, id, y, m):
+        print(f"Generating slots for {y}-{m}...")
+        slots = []
+        for i in range(30):
+            start = date(y, m, i+1).replace(hour=MIN_HOUR)
+            slots += [start + j*step for j in range(0, (MAX_HOUR-MIN_HOUR)*60//STEP_MINUTES)]
+
+        inserted = db["slots"].insert_many([
+            {"doctorId": id, "startTime": slot, "endTime": slot + step}
+            for slot in slots
+        ]).inserted_ids
+
+        BookingTests.free_slots += slots
+        print(f"Generated {len(BookingTests.free_slots)} slots (inserted {len(inserted)})")
 
     def generate_pn(self):
         # generate pseudo personnummer (random 10 digit number)
@@ -72,8 +80,8 @@ class BookingTests(HttpUser):
         }
 
         BookingTests.doctor_id = db['doctors'].insert_one(doctor).inserted_id
-        BookingTests.generate_slots(db, BookingTests.doctor_id, test_date.year, test_date.month, test_date.day)
-        time.sleep(0.1) # be nice to Atlas
+        BookingTests.generate_slots(db, BookingTests.doctor_id, test_date.year, test_date.month)
+        time.sleep(1) # be nice to Atlas
 
     @events.test_stop.add_listener
     def on_test_stop(environment, **kwargs):
@@ -113,18 +121,24 @@ class BookingTests(HttpUser):
     @task
     def create_booking(self):
         # Try to book a random slot
-        if BookingTests.doctor_id:
+        if BookingTests.doctor_id and BookingTests.free_slots:
+            date = BookingTests.free_slots.pop(randint(0, len(BookingTests.free_slots)-1))
             headers = {"Authorization": f"Bearer {self.token}"}
             body = {
                 'doctorId': str(BookingTests.doctor_id),
-                'startTime': str(test_date + delta(hours=randint(0, MAX_HOUR-MIN_HOUR)))
+                'startTime': date.isoformat()
             }
             res = self.client.post("/appointments",
                 headers=headers,
                 json=body
             )
             if res.json().get("message") == "Slot successfully booked": # TODO: status code
-                self.booked_slots.append(body["startTime"])
+                self.booked_slots.append(date)
+            else:
+                BookingTests.free_slots.append(date)
+
+        elif BookingTests.doctor_id:
+            print("No free slots")
         else:
             print("No doctor ID found")
 
@@ -132,15 +146,19 @@ class BookingTests(HttpUser):
     def cancel_booking(self):
         # Try to cancel one of the booked slots
         if self.booked_slots and BookingTests.doctor_id:
+            date = self.booked_slots.pop(randint(0, len(self.booked_slots)-1))
+            print(date)
             headers = {"Authorization": f"Bearer {self.token}"}
             body = {
                 'doctorId': str(BookingTests.doctor_id),
-                'startTime': self.booked_slots[randint(0, len(self.booked_slots)-1)]
+                'startTime': date.isoformat()
             }
             self.client.delete("/appointments",
                 headers=headers,
                 json=body
             )
-            self.booked_slots.remove(body["startTime"])
+            BookingTests.free_slots.append(date)
         elif self.booked_slots:
             print("No doctor ID found")
+        else:
+            print("No booked slots")
