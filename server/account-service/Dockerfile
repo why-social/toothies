@@ -18,4 +18,4 @@ RUN npm run build
 CMD [ "node", "dist/index.js" ]
 
 # Exposing server port
-EXPOSE 3001
+EXPOSE 3002
