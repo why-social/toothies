@@ -5,7 +5,7 @@ FROM node:slim
 ENV NODE_ENV development
 
 # Setting up the work directory
-WORKDIR /database-service
+WORKDIR /account-service
 
 # Copying all the files in our project
 COPY . .
