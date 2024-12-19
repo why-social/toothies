@@ -5,7 +5,7 @@ FROM node:slim
 ENV NODE_ENV development
 
 # Setting up the work directory
-WORKDIR /database-service
+WORKDIR /account-service
 
 # Copying all the files in our project
 COPY . .
@@ -18,4 +18,4 @@ RUN npm run build
 CMD [ "node", "dist/index.js" ]
 
 # Exposing server port
-EXPOSE 3001
+EXPOSE 3002

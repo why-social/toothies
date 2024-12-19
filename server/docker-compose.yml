@@ -5,7 +5,7 @@ services:
     container_name: api-gateway
     ports:
       - "3000:3000"
-      
+
   appointment-service:
     build: ./appointment-service
     image: appointment-service
@@ -15,7 +15,13 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     deploy:
       replicas: 1
-    
+
+  account-service:
+    build: ./account-service
+    image: account-service
+    ports:
+      - "3002"
+
   notification-service:
     build: ./notification-service
     image: notification-service
