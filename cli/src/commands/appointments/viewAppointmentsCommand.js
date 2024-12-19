@@ -80,7 +80,7 @@ const viewAppointments = new Command("view")
 		if(res.data.length == 0)
 			return console.log(chalk.yellow("No appointments found for the specified patient"));
 
-		if(options.pretty){
+		if(options.prettify){
 			console.table(modifiedDataPrettified, ["Start time", "End time", "Patient name"]);
 		} else {
 			console.log(modifiedData);
