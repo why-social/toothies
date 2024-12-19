@@ -3,7 +3,7 @@ import chalk from "chalk";
 import { makeRequest, getDoctorId } from '../../utils/utils.js';
 import ora from "ora";
 
-const spinner = ora({ text: "Loading" });
+const spinner = ora({ text: "Loading\n" });
 
 const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -60,6 +60,10 @@ const viewAppointments = new Command("view")
 		console.log(chalk.yellow(`Fetching appointments for ${options.patient}...`));
 		spinner.start();
 		let res = await makeRequest("get", `${process.env.API_URL}/doctor/appointments/?patientName=${options.patient}&doctorId=${doctorId}`, "Error fetching appointments:");
+		if(res.data.error){
+			spinner.stop();
+			return console.log(chalk.red(res.data.error));
+		}
 		const modifiedDataPrettified = res.data.map((appointment) => {
 			return {
 				"Start time": new Date(appointment.startTime).toLocaleString(),
@@ -76,7 +80,7 @@ const viewAppointments = new Command("view")
 		if(res.data.length == 0)
 			return console.log(chalk.yellow("No appointments found for the specified patient"));
 
-		if(options.pretty){
+		if(options.prettify){
 			console.table(modifiedDataPrettified, ["Start time", "End time", "Patient name"]);
 		} else {
 			console.log(modifiedData);
