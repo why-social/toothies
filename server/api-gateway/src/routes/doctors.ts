@@ -110,4 +110,31 @@ router.get(
   },
 );
 
+/*
+ *  Cancel an appointment by doctor
+ *  Request Format:
+ *      Endpoint: /doctor/appointments/:id
+ */
+router.delete("/doctor/appointments", authMiddleware, (req: Request, res: Response) => {
+	if (!req.isAuth || !req.user) {
+		res.status(401).send("Unauthorized");
+		return;
+	}
+
+	broker.publishToService(
+		ServiceType.Appointments,
+		"appointments/cancelByDoc",
+		{ doctorId: req.user, startTime: req.body.startTime },
+		{
+			onResponse(mres: MqttResponse) {
+				// todo: get status from response
+				res.status(200).send(mres.data);
+			},
+			onServiceError(msg: string) {
+				res.status(500).send(msg);
+			},
+		},
+	);
+})
+
 export default router;

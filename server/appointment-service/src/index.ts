@@ -374,6 +374,15 @@ async function handleAppointmentsRequest(payload: any) {
       console.log(`Booking successfully cancelled: ${payload.data.startTime}`);
       break;
 
+	case "cancelByDoc": // cancel a slot by doctor
+		if(!payload.data.startTime || !payload.data.doctorId) {
+			console.error("Invalid query:");
+			console.log(payload);
+			break;
+		}
+		cancelAppointmentByDoctor(payload);
+		break;
+
     case "getDocDate": // get all booked slots for a doctor on a specific day
       if (!payload.data.doctorId) {
         console.error("Invalid query:");
@@ -424,6 +433,66 @@ async function handleAppointmentsRequest(payload: any) {
       console.error("Invalid action");
       return;
   }
+}
+
+async function cancelAppointmentByDoctor(payload: any) {
+	payload.data.startTime = new Date(payload.data.startTime);
+	let slot = await slots.findOne({
+		doctorId: payload.data.doctorId,
+		startTime: payload.data.startTime,
+	});
+	if (!slot) {
+		console.error("Slot does not exist");
+		publishResponse(payload.reqId, {
+			error: "Error: Slot does not exist",
+		});
+		return;
+	}
+	if (!slot.isBooked) {
+		console.error("Slot not booked");
+		console.log(payload);
+		console.log(slot);
+		publishResponse(payload.reqId, {
+			message: "Error: Cannot cancel a non-booked slot",
+		});
+		return;
+	}
+
+	const userId = slot.bookedBy;
+
+	slot.isBooked = false;
+	slot.bookedBy = null;
+
+	await slots.updateOne(
+		{ _id: slot._id },
+		{ $set: { isBooked: false, bookedBy: null } },
+	);
+	publishResponse(payload.reqId, {
+		message: "Booking successfully cancelled",
+	});
+	mqttClient.publish(
+		`appointments/${payload.data.doctorId}`,
+		JSON.stringify(slot),
+	);
+
+	// Notify the user that a booking has been cancelled
+	mqttClient.publish(
+		"notifications/user",
+		JSON.stringify({
+			timestamp: new Date(),
+			reqId: uniqid(),
+			data: {
+				userId: userId,
+				emailMessage: {
+					subject: "Booking Cancelled by Doctor",
+					text: `Your booking has been cancelled by doctor for ${payload.data.startTime}\nIf you have any questions, please contact the clinic.`,
+					html: `<p>Your booking has been cancelled by doctor for ${payload.data.startTime}</p><p>If you have any questions, please contact the clinic.</p>`,
+				},
+			},
+		}),
+	);
+
+	console.log(`Booking successfully cancelled by doctor: ${payload.data.startTime}`);
 }
 
 async function getAllDoctors(payload: any) {

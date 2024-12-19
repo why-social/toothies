@@ -88,23 +88,80 @@ const notifyDoctor = async (message: Buffer) => {
   }
 };
 
+const notifyUser = async (message: Buffer) => {
+	let data, reqId, timestamp;
+	try {
+		const payload = JSON.parse(message.toString());
+		data = payload.data;
+		reqId = payload.timestamp;
+		timestamp = payload.timestamp;
+	} catch (e) {
+		if (e instanceof Error) {
+			console.error(e.message);
+		} else {
+			console.error(e);
+		}
+		console.log(`Malformed request: ${message}`);
+		return;
+	}
+
+	if (!data || !timestamp) {
+		console.error(`Malformed request: ${message}`);
+		return;
+	}
+	if (!data.emailMessage || !data.emailMessage.subject || !data.emailMessage.text || !data.emailMessage.html) {
+		console.error(`Missing required fields in request: ${message}`);
+		return;
+	}
+
+	const user = await users.findOne({
+		_id: new ObjectId(data.userId),
+	});
+
+	if (!user) {
+		console.error(`User not found: ${message}`);
+		return;
+	}
+
+	if (!user.email) {
+		console.log(`User ${user.name} does not have an email address`);
+		return;
+	}
+
+	// Send email
+	try {
+		await sendEmail(
+			user.email,
+			user.name,
+			data.emailMessage.subject,
+			data.emailMessage.text,
+			data.emailMessage.html,
+		);
+		console.log(
+			`Email sent to user: ${user.email}\nEmail text: ${data.emailMessage.text}`,
+		);
+	} catch (e) {
+		console.error(`Failed to send email to user: ${user.email}`);
+		console.log(e);
+	}
+}
+
 //-------------------- DEFINE BROKER --------------------
 const broker: ServiceBroker = new ServiceBroker(
-  "notifications",
-  String(process.env.BROKER_ADDR),
-  {
-    username: String(process.env.MQTT_USERNAME),
-    password: String(process.env.MQTT_PASSWORD),
-  },
-  {
-    onFailed() {
-      process.exit(0);
-    },
-    onConnected() {
-      // TODO: topics must include serviceId
-      //serviceId/notifications/login
-      broker.subscribe("notifications/doctor", notifyDoctor, false);
-      //broker.subcscribe("user", notifyUser);
-    },
-  },
+	"notifications",
+	String(process.env.BROKER_ADDR),
+	{
+		username: String(process.env.MQTT_USERNAME),
+		password: String(process.env.MQTT_PASSWORD),
+	},
+	{
+		onFailed() {
+			process.exit(0);
+		},
+		onConnected() {
+			// TODO: topics must include serviceId
+			broker.subscribe("notifications/doctor", notifyDoctor, false);
+			broker.subscribe("notifications/user", notifyUser, false);
+		},
+	},
 );

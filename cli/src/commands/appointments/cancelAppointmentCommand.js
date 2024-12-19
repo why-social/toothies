@@ -29,7 +29,7 @@ const cancelAppointment = new Command("cancel")
 	// Make an api call to delete an appointment and handle the response
 	const doctorId = await getDoctorId();
 
-	const res = await makeRequest('delete', `${process.env.API_URL}/appointments`, "Error deleting the appointment:", { startTime: startDate, doctorId: doctorId});
+	const res = await makeRequest('delete', `${process.env.API_URL}/doctor/appointments`, "Error deleting the appointment:", { startTime: startDate });
 	if(res.data?.message) console.log(res.data.message);
 });
 
