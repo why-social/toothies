@@ -84,6 +84,7 @@ const notifyDoctor = async (message: Buffer) => {
     );
   } catch (e) {
     console.error(`Failed to send email to doctor: ${doctor.email}`);
+	console.log(e);
   }
 };
 
