@@ -1,4 +1,14 @@
 import Mailjet from "node-mailjet";
+import dotenv from "dotenv";
+
+dotenv.config();
+
+if (!process.env.MJ_APIKEY_PUBLIC){
+	throw new Error("MJ_APIKEY_PUBLIC is not defined");
+}
+if (!process.env.MJ_APIKEY_PRIVATE){
+	throw new Error("MJ_APIKEY_PRIVATE is not defined");
+}
 
 const mailjet = Mailjet.apiConnect(
 	String(process.env.MJ_APIKEY_PUBLIC),
