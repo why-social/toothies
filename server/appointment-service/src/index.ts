@@ -380,10 +380,10 @@ async function handleAppointmentsRequest(payload: any) {
       break;
 
     case "getDocPatient":
-      if (!payload.data.doctorId) {
+      if (!payload.data.doctorId || !payload.data.patientName) {
         console.error("Invalid query:");
         console.log(payload);
-        publishResponse(payload.reqId, { message: "Invalid request" });
+        publishResponse(payload.reqId, { error: "Invalid request" });
         break;
       }
 
@@ -712,19 +712,22 @@ async function getAppointmentsForDoctorPerPatient(payload: any) {
   const reqId = payload.reqId;
   const doctorId = new ObjectId(payload.data.doctorId);
   const patientName = payload.data.patientName;
-  const patient = await users.findOne({ name: patientName });
-  if (!patient) {
-    publishResponse(reqId, { message: "Patient not found" });
+  const patients = await users.find({ name: patientName }).toArray();
+  if (patients === null || patients.length === 0) {
+    publishResponse(reqId, { error: "Patient not found" });
     return;
   }
-  const patientId = patient._id;
+  const patientIds = patients.map((patient) => patient._id);
 
   const patientAppointments = await slots
     .find({
       doctorId: doctorId,
-      bookedBy: patientId,
+      bookedBy: { $in: patientIds },
     })
+	.sort({ startTime: 1 })
     .toArray();
+
+	console.log(patientAppointments);
 
   const appointmentsWithNames = patientAppointments.map((appointment) => {
     appointment.patientName = patientName;
