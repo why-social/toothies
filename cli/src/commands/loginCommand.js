@@ -6,7 +6,7 @@ const tokenPath = './.env';
 
 const loginCommand = new Command('login')
 .description('Login to Toothies')
-.requiredOption('-u, --username <type>', `Your username ${chalk.dim('(required)')}`)
+.requiredOption('-e, --email <type>', `Your email ${chalk.dim('(required)')}`)
 .requiredOption('-p, --password <type>', `Your password ${chalk.dim('(required)')}`)
 .action((options) => {
 	//TODO implement the login logic (call an API, etc.)
