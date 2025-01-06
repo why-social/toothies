@@ -43,6 +43,31 @@ router.post("/auth/login", (req: Request, res: Response) => {
   );
 });
 
+
+router.post("/auth/doctorLogin", (req: Request, res: Response) => {
+	if(!req.body.email || !req.body.password) {
+		res.status(400).send("Error: Invalid request");
+		return;
+	}
+	broker.publishToService(
+		ServiceType.Accounts,
+		"doctorLogin",
+		{
+			email: req.body.email,
+			password: req.body.password,
+		},
+		{
+			onResponse(mres: MqttResponse) {
+				// todo: get status from response
+				res.status(200).send(mres.data);
+			},
+			onServiceError(msg: string) {
+				res.status(500).send(msg);
+			},
+		},
+	);
+})
+
 /*
  * Register a user. Returns user data on success
  */
