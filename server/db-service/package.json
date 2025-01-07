@@ -1,0 +1,20 @@
+{
+  "name": "db-service",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node dist/index.js",
+    "build": "tsc",
+    "dev": "tsc && node dist/index.js"
+  },
+  "devDependencies": {
+    "@types/dockerode": "^3.3.32",
+    "@types/node": "^22.9.0",
+    "mongodb": "^6.11.0",
+    "typescript": "^5.7.2"
+  },
+  "dependencies": {
+    "@toothies-org/mqtt-service-broker": "^1.0.0",
+    "dotenv": "^16.4.7"
+  }
+}
