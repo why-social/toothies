@@ -1,23 +1,20 @@
-import { inject } from '@angular/core';
-import { Router, CanActivateFn } from '@angular/router';
+import { CanMatchFn } from '@angular/router';
 import { jwtDecode } from 'jwt-decode';
 
-export const AuthGuard: CanActivateFn = (): boolean => {
-  if (!isLoggedIn()) {
-    inject(Router).navigateByUrl('/login');
-    return false;
-  }
-
-  return true;
+export const AdminGuard: CanMatchFn = (): boolean => {
+  return isAdmin();
 };
 
-export const NegatedAuthGuard: CanActivateFn = (): boolean => {
-  if (isLoggedIn()) {
-    inject(Router).navigateByUrl('/');
-    return false;
-  }
+export const NegatedAdminGuard: CanMatchFn = (): boolean => {
+  return !isAdmin();
+};
 
-  return true;
+export const AuthGuard: CanMatchFn = (): boolean => {
+  return isLoggedIn();
+};
+
+export const NegatedAuthGuard: CanMatchFn = (): boolean => {
+  return !isLoggedIn();
 };
 
 export function getToken(decode?: boolean): any {
@@ -38,8 +35,14 @@ export function getToken(decode?: boolean): any {
   return token;
 }
 
-function isLoggedIn(): boolean {
-  const exp = getToken(true)?.exp;
+function isLoggedIn(decodedToken?: any): boolean {
+  const exp = (decodedToken ? decodedToken : getToken(true))?.exp;
 
   return exp && new Date().getTime() / 1000 < exp;
+}
+
+function isAdmin(): boolean {
+  const decoded = getToken(true);
+
+  return isLoggedIn(decoded) && decoded?.userId == 'admin';
 }

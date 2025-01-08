@@ -23,6 +23,16 @@ if (!process.env.JWT_KEY) {
 }
 const jwtKey: PrivateKey = process.env.JWT_KEY;
 
+function createAdminToken() {
+  return sign(
+    {
+      userId: "admin",
+    },
+    jwtKey,
+    { expiresIn: "7d" }
+  );
+}
+
 function createUserToken(user: User) {
   return sign(
     {
@@ -31,20 +41,20 @@ function createUserToken(user: User) {
       name: user.name,
     },
     jwtKey,
-    { expiresIn: "7d" },
+    { expiresIn: "7d" }
   );
 }
 
 function createDoctorToken(doctor: User) {
-	return sign(
-		{
-			userId: doctor._id,
-			email: doctor.email,
-			name: doctor.name,
-		},
-		jwtKey,
-		{ expiresIn: "7d" },
-	);
+  return sign(
+    {
+      userId: doctor._id,
+      email: doctor.email,
+      name: doctor.name,
+    },
+    jwtKey,
+    { expiresIn: "7d" }
+  );
 }
 
 const atlasClient = new MongoClient(process.env.ATLAS_CONN_STR);
@@ -104,13 +114,24 @@ const authenticateUser = async (message: Buffer) => {
     return;
   }
 
+  if (data.personnummer == "admin") {
+    if (process.env.ADMIN_PASSWORD == data.password) {
+      const token = createAdminToken();
+      broker.publishResponse(reqId, { token });
+    } else {
+      broker.publishError(reqId, "User does not exist");
+      console.error(`Failed attempt to login into admin account.`);
+    }
+
+    return;
+  }
+
   const user = await users.findOne({ personnummer: data.personnummer });
   if (!user) {
     broker.publishError(reqId, "User does not exist");
     console.error(`User does not exist: \n${message}`);
     return;
   }
-
   if (await compare(data.password, user.passwordHash)) {
     const token = createUserToken(user as User);
     broker.publishResponse(reqId, { token });
@@ -194,54 +215,54 @@ const createUser = async (message: Buffer) => {
 };
 
 const authenticateDoctor = async (message: Buffer) => {
-	let data, reqId, timestamp;
-	try {
-		const payload = JSON.parse(message.toString());
-		data = payload.data;
-		reqId = payload.reqId;
-		timestamp = payload.timestamp;
-	} catch (e) {
-		if (e instanceof Error) {
-			console.error(e.message);
-		} else {
-			console.error(e);
-		}
-		broker.publishError(reqId, "Malformed request");
-		return;
-	}
+  let data, reqId, timestamp;
+  try {
+    const payload = JSON.parse(message.toString());
+    data = payload.data;
+    reqId = payload.reqId;
+    timestamp = payload.timestamp;
+  } catch (e) {
+    if (e instanceof Error) {
+      console.error(e.message);
+    } else {
+      console.error(e);
+    }
+    broker.publishError(reqId, "Malformed request");
+    return;
+  }
 
-	if (!data || !timestamp) {
-		// TODO add check for reqId
-		broker.publishError(reqId, "Malformed request");
-		console.error(`Malformed request: ${message}`);
-		return;
-	}
-	if (!data.email || !data.password) {
-		broker.publishError(reqId, "Missing fields");
-		console.error(`Missing fields in request: ${message}`);
-		return;
-	}
+  if (!data || !timestamp) {
+    // TODO add check for reqId
+    broker.publishError(reqId, "Malformed request");
+    console.error(`Malformed request: ${message}`);
+    return;
+  }
+  if (!data.email || !data.password) {
+    broker.publishError(reqId, "Missing fields");
+    console.error(`Missing fields in request: ${message}`);
+    return;
+  }
 
-	const doctor = await doctors.findOne({ email: data.email });
-	if (!doctor) {
-		broker.publishError(reqId, "Doctor does not exist");
-		console.error(`Doctor does not exist: \n${message}`);
-		return;
-	}
+  const doctor = await doctors.findOne({ email: data.email });
+  if (!doctor) {
+    broker.publishError(reqId, "Doctor does not exist");
+    console.error(`Doctor does not exist: \n${message}`);
+    return;
+  }
 
-	if(!doctor.passwordHash) {
-		broker.publishError(reqId, "Doctor has no password");
-		console.error(`Doctor has no password: \n${message}`);
-		return;
-	}
+  if (!doctor.passwordHash) {
+    broker.publishError(reqId, "Doctor has no password");
+    console.error(`Doctor has no password: \n${message}`);
+    return;
+  }
 
-	if (await compare(data.password, doctor.passwordHash)) {
-		const token = createDoctorToken(doctor as User);
-		broker.publishResponse(reqId, { token });
-	} else {
-		broker.publishError(reqId, "Incorrect password");
-	}
-}
+  if (await compare(data.password, doctor.passwordHash)) {
+    const token = createDoctorToken(doctor as User);
+    broker.publishResponse(reqId, { token });
+  } else {
+    broker.publishError(reqId, "Incorrect password");
+  }
+};
 
 // -------------------- DEFINE BROKER --------------------
 const broker: ServiceBroker = new ServiceBroker(
@@ -259,7 +280,7 @@ const broker: ServiceBroker = new ServiceBroker(
       // TODO: topics must include serviceId
       broker.subscribe("login", authenticateUser);
       broker.subscribe("register", createUser);
-	  broker.subscribe("doctorLogin", authenticateDoctor);
+      broker.subscribe("doctorLogin", authenticateDoctor);
     },
-  },
+  }
 );

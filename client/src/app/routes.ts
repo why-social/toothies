@@ -3,16 +3,22 @@ import { Booking } from './views/booking/booking';
 import { Home } from './views/home/home';
 import { Login } from './views/authentication/login/login';
 import { Register } from './views/authentication/register/register';
-import { AuthGuard, NegatedAuthGuard } from './views/authentication/guard';
+import {
+  AdminGuard,
+  AuthGuard,
+  NegatedAuthGuard,
+  NegatedAdminGuard,
+} from './views/authentication/guard';
 import { NotFound } from './views/not.found/not.found';
 import { ClinicView } from './views/clinic/clinic';
+import { Admin } from './views/admin/admin';
 
 export const routes: Routes = [
   {
     path: 'book/:id',
     pathMatch: 'full',
     component: Booking,
-    canActivate: [AuthGuard],
+    canMatch: [AuthGuard, NegatedAdminGuard],
   },
   {
     path: 'book',
@@ -23,7 +29,7 @@ export const routes: Routes = [
     path: 'clinic/:id',
     pathMatch: 'full',
     component: ClinicView,
-    canActivate: [AuthGuard],
+    canMatch: [AuthGuard, NegatedAdminGuard],
   },
   {
     path: 'clinic',
@@ -32,22 +38,27 @@ export const routes: Routes = [
   },
   {
     path: '',
+    component: Admin,
+    pathMatch: 'full',
+    canMatch: [AdminGuard],
+  },
+  {
+    path: '',
     component: Home,
     pathMatch: 'full',
-    canActivate: [AuthGuard],
+    canMatch: [AuthGuard, NegatedAdminGuard],
   },
-
   {
     path: 'login',
     pathMatch: 'full',
     component: Login,
-    canActivate: [NegatedAuthGuard],
+    canMatch: [NegatedAuthGuard, NegatedAdminGuard],
   },
   {
     path: 'register',
     pathMatch: 'full',
     component: Register,
-    canActivate: [NegatedAuthGuard],
+    canMatch: [NegatedAuthGuard, NegatedAdminGuard],
   },
 
   { path: '404', component: NotFound },
