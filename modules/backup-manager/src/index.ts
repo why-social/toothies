@@ -91,10 +91,11 @@ export class DbManager {
       // expected answer: { ok: 1 }
       if (result.ok !== 1) {
         console.log("Ping failed");
+        this.updateState(true);
       } else {
-        console.log("Ping successful");
+        // console.log("Ping successful");
+        this.updateState(false);
       }
-      this.updateState(false);
     }).catch((e) => {
       if (e instanceof Error) {
         console.error("MongoDB connection failed.", e.message);
