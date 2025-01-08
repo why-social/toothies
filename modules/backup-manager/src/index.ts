@@ -1,7 +1,6 @@
-import { MongoClient, MongoClientOptions, ObjectId } from "mongodb";
+import { Db, MongoClient, MongoClientOptions, ObjectId } from "mongodb";
 import dotenv from "dotenv";
 import { spawn } from "child_process";
-import { DbStateListener } from "./dbStateListener";
 
 dotenv.config();
 if (!process.env.ATLAS_CONN_STR) {
@@ -9,34 +8,69 @@ if (!process.env.ATLAS_CONN_STR) {
 }
 
 
-export class BackupManager {
+export class DbManager {
   private static readonly BACKUP_DIR = "./backup";
   private static readonly DEFAULT_PING_INTERVAL = 5000;
   private static readonly DEFAULT_BAK_INTERVAL = 3600000;
 
-  private atlasClient;
+  private pingClient;
   private connString;
-  private cb: DbStateListener;
+  private mongoOpts: MongoClientOptions | undefined;
+
+  private client: MongoClient | undefined;
+  private db: Db | undefined;
+  public collections: Map<string, any> = new Map();
+  private collectionNames: Array<string> = [];
 
   private backupMode = false; // false = normal, true = backup
 
   constructor(
     connString: string,
-    cb: DbStateListener,
+    collections: Array<string>,
+    mongoOpts?: MongoClientOptions,
     options?: { pingInterval?: number, backupInterval?: number }
   ) {
     this.connString = connString;
-    this.cb = cb;
-    this.atlasClient = new MongoClient(connString, { maxPoolSize: 1 });
-    this.atlasClient.connect();
+    this.collectionNames = collections;
+    this.mongoOpts = mongoOpts;
+
+    this.pingClient = new MongoClient(connString, { maxPoolSize: 1 });
+    this.pingClient.connect();
+
+    this.reconnect(connString, mongoOpts);
 
     this.createBackup();
     setInterval(() => this.pingAtlas(),
-      options?.pingInterval || BackupManager.DEFAULT_PING_INTERVAL);
+      options?.pingInterval || DbManager.DEFAULT_PING_INTERVAL);
 
     setInterval(async () => {
       await this.createBackup();
-    }, options?.backupInterval || BackupManager.DEFAULT_BAK_INTERVAL);
+    }, options?.backupInterval || DbManager.DEFAULT_BAK_INTERVAL);
+  }
+
+  public async reconnect(connString: string, opts?: MongoClientOptions) {
+    if (this.client) {
+      console.log("Closing previous connection");
+      try {
+        await this.client.close();
+      } catch (e) {
+        console.error("Failed to close previous connection", e);
+      }
+    }
+
+    console.log(`Connecting to ${connString}`);
+    try {
+      this.client = new MongoClient(connString, opts);
+      await this.client.connect();
+      this.db = this.client.db("primary");
+      this.collections = new Map();
+      for (const c of this.collectionNames) {
+        this.collections.set(c, this.db.collection(c));
+      }
+      console.log("Connected");
+    } catch (e) {
+      console.error("Failed to connect", e);
+    }
   }
 
   private async createBackup(): Promise<void> {
@@ -53,18 +87,17 @@ export class BackupManager {
   }
 
   private pingAtlas(): void {
-    this.atlasClient.db().command({ ping: 1 }).then((result) => {
+    this.pingClient.db().command({ ping: 1 }).then((result) => {
       // expected answer: { ok: 1 }
       if (result.ok !== 1) {
         console.log("Ping failed");
       } else {
         console.log("Ping successful");
       }
-      throw new Error("TESTING");
       this.updateState(false);
     }).catch((e) => {
       if (e instanceof Error) {
-        console.error("MongoDB connection failed. Failover to backup.", e.message);
+        console.error("MongoDB connection failed.", e.message);
       }
       else {
         console.error("Unknown error: ", e);
@@ -79,16 +112,20 @@ export class BackupManager {
 
     this.backupMode = newState;
 
-    if (this.backupMode)
-      this.cb.onSwitchDb(this.getBackupConnectionString());
-    else
-      this.cb.onSwitchDb(this.connString);
+    if (this.backupMode) {
+      console.log("Failing over to local db backup");
+      this.reconnect(this.getBackupConnectionString(), this.mongoOpts);
+    }
+    else {
+      console.log("(Re-)connecting to primary database");
+      this.reconnect(this.connString, this.mongoOpts);
+    }
   }
 
   private async dump(): Promise<void> {
     return new Promise((resolve, reject) => {
       console.log("Starting backup...");
-      const mongodump = spawn("mongodump", ["--uri", this.connString, "-o", BackupManager.BACKUP_DIR]);
+      const mongodump = spawn("mongodump", ["--uri", this.connString, "-o", DbManager.BACKUP_DIR]);
 
       mongodump.stdout.on("data", (data: Buffer) => {
         console.log(`mongdump stdout: ${data}`);
@@ -113,7 +150,7 @@ export class BackupManager {
   private async restore(): Promise<void> {
     return new Promise((resolve, reject) => {
       console.log("Starting restore...");
-      const mongorestore = spawn("mongorestore", ["--dir", BackupManager.BACKUP_DIR, "--drop", "--host=localhost:27017"]);
+      const mongorestore = spawn("mongorestore", ["--dir", DbManager.BACKUP_DIR, "--drop", "--host=localhost:27017"]);
 
 
       mongorestore.stdout.on("data", (data: Buffer) => {
@@ -141,11 +178,4 @@ export class BackupManager {
     return `mongodb://localhost:27017`
   }
 }
-
-
-
-
-
-
-
 
