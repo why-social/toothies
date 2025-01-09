@@ -86,6 +86,11 @@ mqttClient.on("connect", async () => {
     console.log(`Subscribed to slots/#`);
   });
 
+	mqttClient.subscribe(serviceId + "/subscriptions/#", (err) => {
+		if (err) return console.error("Failed to subscribe to request topic");
+		console.log(`Subscribed to subscriptions/#`);
+	});
+
   // Heartbeat
   setInterval(() => {
     const serviceMsg = new Service(serviceId, containerName).toString();
@@ -191,6 +196,19 @@ mqttClient.on("message", async (topic, message) => {
       handleSlotRequest(payload);
       break;
     }
+
+	case "subscriptions": {
+		if (!action || !data.userId || !data.doctorId) {
+			console.error("Invalid query:");
+			console.log(payload);
+			break;
+		}
+		switch(action) {
+			case "sub":
+				subscribeToDoctorCalendar(payload);
+				break;
+		}
+	}
   }
 });
 
@@ -863,4 +881,53 @@ async function getAppointmentsForUser(payload: any) {
     .toArray();
 
   publishResponse(reqId, userAppointments);
+}
+
+
+async function subscribeToDoctorCalendar(payload: any) {
+	const userId = new ObjectId(payload.data.userId);
+	const doctorId = new ObjectId(payload.data.doctorId);
+
+	const doctor = await doctors.findOne({ _id: doctorId });
+	if (!doctor) {
+		publishResponse(payload.reqId, { message: "Doctor not found" });
+		return;
+	}
+
+	const user = await users.findOne({ _id: userId });
+	if (!user) {
+		publishResponse(payload.reqId, { message: "User not found" });
+		return;
+	}
+
+	// Check if user is already subscribed to the calendar
+	if(doctor.subscribers?.some((subscriber: ObjectId) => subscriber.toString() === userId.toString())) {
+		publishResponse(payload.reqId, { message: "Already subscribed to this calendar" });
+		return;
+	}
+
+	// Add user to the list of subscribers
+	let oldSubscribersList = doctor.subscribers || [];
+	oldSubscribersList.push(userId);
+	const newSubscribersList = oldSubscribersList;
+
+	try {
+		// Update the list of subscribers
+		await doctors.updateOne(
+			{_id: doctorId},
+			{ $set: { subscribers: newSubscribersList } }
+		)
+	} catch (err){
+		console.log(err);
+		publishResponse(payload.reqId, { message: "An error occurred while subscribing to a calendar" })
+		return;
+	}
+
+	// get subscribers
+	const doctor2 = await doctors.findOne({ _id: doctorId });
+	console.log(doctor2?.subscribers);
+
+	const message = `Subscribed to ${doctor.name}'s calendar`;
+
+	publishResponse(payload.reqId, { message });
 }
