@@ -1,64 +1,52 @@
 :host {
   display: flex;
   flex-direction: row;
-  gap: 1rem;
-  align-content: center;
-  padding: 1rem;
-  justify-content: center;
-  color: var(--mat-sys-on-background);
+  flex-grow: 1;
+  min-height: 100%;
 }
 
-.forms {
-  max-width: 400px;
-}
-
-form {
-  display: flex;
-  flex-direction: column;
-}
-
-.pair {
-  display: flex;
-  gap: 20px;
-  flex-direction: row;
-}
-
-.exception {
-  width: 100% !important;
-  position: absolute;
-  top: 50%;
-  left: 0;
-  transform: translateY(-50%);
-  display: flex;
-  align-items: center;
-  color: var(--mat-sys-on-background);
-  gap: 1rem;
-  flex-direction: column;
-}
-
-.exception > button {
-  width: fit-content;
+mat-tab-group {
+  width: 100%;
 }
 
 .representative {
-  flex: 1;
+  width: 100%;
   position: relative;
   display: none;
 }
 
 .representative > img {
-  position: absolute;
-  width: 100%;
+  position: fixed;
   height: 100%;
+  padding: 2rem;
+  box-sizing: border-box;
+  width: 100%;
   object-fit: contain;
-  max-width: 700px;
-  left: 50%;
-  top: 50%;
-  transform: translateX(-50%) translateY(-50%);
+  top: 0;
 }
 
 @media screen and (min-width: 992px) {
   .representative {
     display: unset;
+  }
+
+  .representative > img {
+    max-width: 592px;
+  }
+
+  mat-tab-group {
+    max-width: 400px;
+  }
+}
+
+@media screen and (min-width: 1200px) {
+  .representative > img {
+    max-width: 800px;
+  }
+}
+
+@media screen and (min-width: 1400px) {
+  .representative > img {
+    max-width: 1000px;
   }
 }

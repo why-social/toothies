@@ -1,97 +1,18 @@
-@if (clinics) {
-  <div class="forms">
-    <h2>Delete Clinic</h2>
-    <form>
-      <mat-form-field>
-        <mat-label>Identifier</mat-label>
-        <input
-          #deleteInput
-          matInput
-          type="text"
-          required
-          spellcheck="false"
-          placeholder="Identifier"
-          [formControl]="control"
-          [matAutocomplete]="auto"
-        />
-        <mat-autocomplete #auto="matAutocomplete">
-          @for (clinic of filteredClinics | async; track clinic) {
-            <mat-option [value]="clinic._id">{{ clinic.name }}</mat-option>
-          }
-        </mat-autocomplete>
-      </mat-form-field>
-      <button
-        mat-flat-button
-        [disabled]="deleteInput.value.length != 24"
-        (click)="deleteClinic(deleteInput.value)"
-      >
-        Delete
-      </button>
-    </form>
-    <h2>Insert Clinic</h2>
-    <form [formGroup]="insertionForm" (ngSubmit)="insertClinic()">
-      <mat-form-field>
-        <mat-label>Name</mat-label>
-        <input
-          required
-          matInput
-          type="text"
-          formControlName="name"
-          placeholder="Name"
-        />
-      </mat-form-field>
-      <div class="pair">
-        <mat-form-field>
-          <mat-label>Latitude</mat-label>
-          <input
-            required
-            matInput
-            type="string"
-            formControlName="latitude"
-            placeholder="Latitude"
-          />
-        </mat-form-field>
-        <mat-form-field>
-          <mat-label>Longitude</mat-label>
-          <input
-            required
-            matInput
-            type="string"
-            formControlName="longitude"
-            placeholder="Longitude"
-          />
-        </mat-form-field>
-      </div>
-      <mat-form-field>
-        <mat-label>City</mat-label>
-        <input
-          required
-          matInput
-          type="text"
-          formControlName="city"
-          placeholder="City"
-        />
-      </mat-form-field>
-      <mat-form-field>
-        <mat-label>Address</mat-label>
-        <textarea
-          required
-          matInput
-          formControlName="address"
-          placeholder="Address"
-        ></textarea>
-      </mat-form-field>
-      <button mat-flat-button type="submit">Insert</button>
-    </form>
-  </div>
-  <div class="representative">
-    <img src="./assets/admin.svg" />
-  </div>
-} @else if (clinics === undefined) {
-  <mat-spinner />
-} @else {
-  <div class="exception">
-    <span>Something went wrong</span>
-    <button mat-stroked-button (click)="fetchClinics()">Reload</button>
-  </div>
-}
+<mat-tab-group mat-stretch-tabs="true" mat-align-tabs="center" preserveContent>
+  <mat-tab label="Doctors">
+    <admin-doctors
+      [doctors]="doctors"
+      [clinics]="clinics"
+      (reloadEvent)="fetchClinics(); fetchDoctors()"
+    ></admin-doctors>
+  </mat-tab>
+  <mat-tab label="Clinics">
+    <admin-clinics
+      [clinics]="clinics"
+      (reloadEvent)="fetchClinics()"
+    ></admin-clinics>
+  </mat-tab>
+</mat-tab-group>
+<div class="representative">
+  <img src="./assets/admin.svg" #representative />
+</div>

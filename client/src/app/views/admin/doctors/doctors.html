@@ -1,0 +1,93 @@
+@if (clinics && doctors) {
+  <div class="forms">
+    <h2>Delete Doctor</h2>
+    <form>
+      <mat-form-field>
+        <mat-label>Identifier</mat-label>
+        <input
+          #deleteInput
+          matInput
+          type="text"
+          required
+          pattern="^[a-fA-F0-9]{24}$"
+          spellcheck="false"
+          placeholder="Identifier"
+          [formControl]="doctorsControl"
+          [matAutocomplete]="doctorsAuto"
+        />
+        <mat-autocomplete #doctorsAuto="matAutocomplete">
+          @for (doctor of filteredDoctors | async; track doctor) {
+            <mat-option [value]="doctor._id">{{ doctor.name }}</mat-option>
+          }
+        </mat-autocomplete>
+      </mat-form-field>
+      <button
+        mat-flat-button
+        [disabled]="!deleteInput.validity.valid"
+        (click)="deleteDoctor(deleteInput.value)"
+      >
+        Delete
+      </button>
+    </form>
+    <h2>Insert Doctor</h2>
+    <form [formGroup]="insertionForm" (ngSubmit)="insertDoctor()">
+      <mat-form-field>
+        <mat-label>Name</mat-label>
+        <input
+          required
+          matInput
+          type="text"
+          formControlName="name"
+          placeholder="Name"
+        />
+      </mat-form-field>
+      <mat-form-field>
+        <mat-label>Type</mat-label>
+        <input matInput type="text" formControlName="type" placeholder="Type" />
+      </mat-form-field>
+      <mat-form-field>
+        <mat-label>Clinic</mat-label>
+        <input
+          matInput
+          type="text"
+          formControlName="clinic"
+          spellcheck="false"
+          placeholder="Identifier"
+          [matAutocomplete]="clinicsAuto"
+        />
+      </mat-form-field>
+      <mat-autocomplete #clinicsAuto="matAutocomplete">
+        @for (clinic of filteredClinics | async; track clinic) {
+          <mat-option [value]="clinic._id">{{ clinic.name }}</mat-option>
+        }
+      </mat-autocomplete>
+      <mat-form-field>
+        <mat-label>E-mail</mat-label>
+        <input
+          matInput
+          placeholder="doctor@example.com"
+          formControlName="mail"
+          required
+        />
+      </mat-form-field>
+      <mat-form-field>
+        <mat-label>Password</mat-label>
+        <input
+          matInput
+          type="password"
+          placeholder="Password"
+          formControlName="password"
+          required
+        />
+      </mat-form-field>
+      <button mat-flat-button type="submit">Insert</button>
+    </form>
+  </div>
+} @else if (clinics === undefined || doctors === undefined) {
+  <mat-spinner />
+} @else {
+  <div class="exception">
+    <span>Something went wrong</span>
+    <button mat-stroked-button (click)="reloadEvent.emit()">Reload</button>
+  </div>
+}
