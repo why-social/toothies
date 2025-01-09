@@ -47,13 +47,11 @@ function createDoctorToken(doctor: User) {
   );
 }
 
-var users: any;
-var doctors: any;
 const db = new DbManager(process.env.ATLAS_CONN_STR, ["users", "doctors"]);
-db.init().then(() => {
-  users = db.collections.get("users");
-  doctors = db.collections.get("doctors");
-});
+db.init()
+  .then(() => console.log("Connected to db"))
+  .catch(() => { throw new Error("Failed to connect to db") });
+
 /*
  * Email regex
  * - Must contain @
@@ -107,18 +105,24 @@ const authenticateUser = async (message: Buffer) => {
     return;
   }
 
-  const user = await users.findOne({ personnummer: data.personnummer });
-  if (!user) {
-    broker.publishError(reqId, "User does not exist");
-    console.error(`User does not exist: \n${message}`);
-    return;
-  }
+  try {
+    const user = await db.withConnection(async () => {
+      return db.collections.get("users").findOne({ personnummer: data.personnummer });
+    }, true)
+    if (!user) {
+      broker.publishError(reqId, "User does not exist");
+      console.error(`User does not exist: \n${message}`);
+      return;
+    }
 
-  if (await compare(data.password, user.passwordHash)) {
-    const token = createUserToken(user as User);
-    broker.publishResponse(reqId, { token });
-  } else {
-    broker.publishError(reqId, "Incorrect password");
+    if (await compare(data.password, user.passwordHash)) {
+      const token = createUserToken(user as User);
+      broker.publishResponse(reqId, { token });
+    } else {
+      broker.publishError(reqId, "Incorrect password");
+    }
+  } catch (e) {
+    broker.publishError(reqId, "Unable to process request");
   }
 };
 
@@ -175,24 +179,31 @@ const createUser = async (message: Buffer) => {
     ?.slice(1)
     .reduce((prev, curr, i, arr) => prev + curr);
 
-  const userExists = await users.findOne({
-    personnummer: pnParsed,
-  });
+  try {
+    const userExists = await db.withConnection(async () => {
+      return db.collections.get("users").findOne({ personnummer: pnParsed, })
+    }, true);
 
-  const user = {
-    personnummer: pnParsed,
-    passwordHash: data.passwordHash,
-    name: data.name,
-    email: data.email,
-  };
-  if (!userExists) {
-    users.insertOne(user);
-    const token = createUserToken(user as User);
-    broker.publishResponse(reqId, { token });
-    console.log(`Created user:\n${JSON.stringify(data)}`);
-  } else {
-    broker.publishError(reqId, "User already exists");
-    console.error(`User already exists: \n${message}`);
+    const user = {
+      personnummer: pnParsed,
+      passwordHash: data.passwordHash,
+      name: data.name,
+      email: data.email,
+    };
+    if (!userExists) {
+      await db.withConnection(async () => {
+        return db.collections.get("users").insertOne(user);
+      }, false);
+      const token = createUserToken(user as User);
+      broker.publishResponse(reqId, { token });
+      console.log(`Created user:\n${JSON.stringify(data)}`);
+    } else {
+      broker.publishError(reqId, "User already exists");
+      console.error(`User already exists: \n${message}`);
+    }
+  } catch (e) {
+    broker.publishError(reqId, `Unable to process request: ${e}`);
+    console.error(e);
   }
 };
 
@@ -225,7 +236,7 @@ const authenticateDoctor = async (message: Buffer) => {
     return;
   }
 
-  const doctor = await doctors.findOne({ email: data.email });
+  const doctor = await db.collections.get("doctors").findOne({ email: data.email });
   if (!doctor) {
     broker.publishError(reqId, "Doctor does not exist");
     console.error(`Doctor does not exist: \n${message}`);
