@@ -32,4 +32,3 @@ CMD [ "sh", "-c", "mongod --bind_ip_all --dbpath /data/db & node dist/index.js" 
 
 # Exposing server port
 EXPOSE 3002
-EXPOSE 27017
