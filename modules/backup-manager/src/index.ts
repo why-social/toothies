@@ -183,7 +183,7 @@ export class DbManager {
   }
 
   private getBackupConnectionString(): string {
-    return `mongodb://localhost:27017`
+    return `mongodb://localhost:27017/ssl=false`
   }
 }
 
