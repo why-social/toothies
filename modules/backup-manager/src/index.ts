@@ -38,8 +38,8 @@ export class DbManager {
     this.pingClient = new MongoClient(connString, { maxPoolSize: 1 });
     this.pingClient.connect();
 
-    setInterval(() => {
-      if (this.isReady) this.pingAtlas()
+    setInterval(async () => {
+      if (this.isReady) await this.pingAtlas()
     }, options?.pingInterval || DbManager.DEFAULT_PING_INTERVAL);
 
     setInterval(async () => {
@@ -93,40 +93,40 @@ export class DbManager {
     });
   }
 
-  private pingAtlas(): void {
-    this.pingClient.db().command({ ping: 1 }).then((result) => {
+  private async pingAtlas() {
+    try {
+      const result = await this.pingClient.db().command({ ping: 1 });
       // expected answer: { ok: 1 }
       if (result.ok !== 1) {
         console.log("Ping failed");
-        this.updateState(true);
+        await this.updateState(true);
       } else {
         // console.log("Ping successful");
-        this.updateState(false);
+        await this.updateState(false);
       }
-    }).catch((e) => {
+    } catch (e) {
       if (e instanceof Error) {
         console.error("MongoDB connection failed.", e.message);
       }
       else {
         console.error("Unknown error: ", e);
       }
-      this.updateState(true);
-    });
-
+      await this.updateState(true);
+    }
   }
 
-  private updateState(newState: boolean): void {
+  private async updateState(newState: boolean) {
     if (this.backupMode === newState) return;
 
     this.backupMode = newState;
 
     if (this.backupMode) {
       console.log("Failing over to local db backup");
-      this.reconnect(this.getBackupConnectionString(), this.mongoOpts);
+      await this.reconnect(this.getBackupConnectionString(), this.mongoOpts);
     }
     else {
       console.log("(Re-)connecting to primary database");
-      this.reconnect(this.connString, this.mongoOpts);
+      await this.reconnect(this.connString, this.mongoOpts);
     }
   }
 
@@ -184,6 +184,22 @@ export class DbManager {
 
   private getBackupConnectionString(): string {
     return `mongodb://localhost:27017/ssl=false`
+  }
+
+  public async withConnection<T>(operation: () => Promise<T>, isRead: boolean): Promise<T> {
+    if (!this.isReady) {
+      throw new Error("Database not ready");
+    }
+
+    if (!this.db) {
+      throw new Error("No database connection");
+    }
+
+    if (this.backupMode && !isRead) {
+      throw new Error("Only reads are allowed while in backup mode");
+    }
+
+    return operation();
   }
 }
 
