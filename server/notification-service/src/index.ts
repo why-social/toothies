@@ -16,13 +16,13 @@ if (!process.env.MQTT_PASSWORD) {
 }
 
 const db = new DbManager(process.env.ATLAS_CONN_STR, ["users", "doctors"]);
-let users: any;
-let doctors: any;
-
-db.init().then(() => {
-	users = db.collections.get("users");
-	doctors = db.collections.get("doctors");
-});
+db.init()
+	.then(() => {
+		console.log("Connected to db");
+	})
+	.catch(() => {
+		throw new Error("Failed to connect to db");
+	});
 
 
 // Notify a doctor via email
@@ -62,22 +62,25 @@ const notifyDoctor = async (message: Buffer) => {
 		return;
 	}
 
-	const doctor = await doctors.findOne({
-		_id: new ObjectId(data.userId),
-	});
-
-	if (!doctor) {
-		console.error(`Doctor not found: ${message}`);
-		return;
-	}
-
-	if (!doctor.email) {
-		console.log(`Doctor ${doctor.name} does not have an email address`);
-		return;
-	}
 
 	// Send email
 	try {
+		const doctor: any = await db.withConnection(() => {
+			return db.collections.get("doctors").findOne({
+				_id: new ObjectId(data.userId),
+			});
+		}, true);
+
+		if (!doctor) {
+			console.error(`Doctor not found: ${message}`);
+			return;
+		}
+
+		if (!doctor.email) {
+			console.log(`Doctor ${doctor.name} does not have an email address`);
+			return;
+		}
+
 		await sendEmail(
 			doctor.email,
 			doctor.name,
@@ -89,8 +92,8 @@ const notifyDoctor = async (message: Buffer) => {
 			`Email sent to doctor: ${doctor.email}\nEmail text: ${data.emailMessage.text}`,
 		);
 	} catch (e) {
-		console.error(`Failed to send email to doctor: ${doctor.email}`);
-		console.log(e);
+		console.error("Failed to send email to doctor");
+		console.error(e);
 	}
 };
 
@@ -120,22 +123,25 @@ const notifyUser = async (message: Buffer) => {
 		return;
 	}
 
-	const user = await users.findOne({
-		_id: new ObjectId(data.userId),
-	});
-
-	if (!user) {
-		console.error(`User not found: ${message}`);
-		return;
-	}
-
-	if (!user.email) {
-		console.log(`User ${user.name} does not have an email address`);
-		return;
-	}
 
 	// Send email
 	try {
+		const user: any = await db.withConnection(() => {
+			return db.collections.get("users").findOne({
+				_id: new ObjectId(data.userId),
+			});
+		}, true);
+
+		if (!user) {
+			console.error(`User not found: ${message}`);
+			return;
+		}
+
+		if (!user.email) {
+			console.log(`User ${user.name} does not have an email address`);
+			return;
+		}
+
 		await sendEmail(
 			user.email,
 			user.name,
@@ -147,8 +153,8 @@ const notifyUser = async (message: Buffer) => {
 			`Email sent to user: ${user.email}\nEmail text: ${data.emailMessage.text}`,
 		);
 	} catch (e) {
-		console.error(`Failed to send email to user: ${user.email}`);
-		console.log(e);
+		console.error("Failed to send email to user");
+		console.error(e);
 	}
 }
 
