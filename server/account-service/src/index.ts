@@ -47,9 +47,13 @@ function createDoctorToken(doctor: User) {
   );
 }
 
+var users: any;
+var doctors: any;
 const db = new DbManager(process.env.ATLAS_CONN_STR, ["users", "doctors"]);
-const users = db.collections.get("users");
-const doctors = db.collections.get("doctors");
+db.init().then(() => {
+  users = db.collections.get("users");
+  doctors = db.collections.get("doctors");
+});
 /*
  * Email regex
  * - Must contain @

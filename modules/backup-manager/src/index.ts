@@ -23,6 +23,7 @@ export class DbManager {
   private collectionNames: Array<string> = [];
 
   private backupMode = false; // false = normal, true = backup
+  private isReady = false;
 
   constructor(
     connString: string,
@@ -37,18 +38,23 @@ export class DbManager {
     this.pingClient = new MongoClient(connString, { maxPoolSize: 1 });
     this.pingClient.connect();
 
-    this.reconnect(connString, mongoOpts);
-
-    this.createBackup();
-    setInterval(() => this.pingAtlas(),
-      options?.pingInterval || DbManager.DEFAULT_PING_INTERVAL);
+    setInterval(() => {
+      if (this.isReady) this.pingAtlas()
+    }, options?.pingInterval || DbManager.DEFAULT_PING_INTERVAL);
 
     setInterval(async () => {
-      await this.createBackup();
+      if (this.isReady) await this.createBackup();
     }, options?.backupInterval || DbManager.DEFAULT_BAK_INTERVAL);
   }
 
+  public async init() {
+    await this.reconnect(this.connString, this.mongoOpts);
+    await this.createBackup();
+    this.isReady = true;
+  }
+
   public async reconnect(connString: string, opts?: MongoClientOptions) {
+    this.isReady = false;
     if (this.client) {
       console.log("Closing previous connection");
       try {
@@ -68,6 +74,7 @@ export class DbManager {
         this.collections.set(c, this.db.collection(c));
       }
       console.log("Connected");
+      this.isReady = true;
     } catch (e) {
       console.error("Failed to connect", e);
     }
