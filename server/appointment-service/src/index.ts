@@ -207,6 +207,9 @@ mqttClient.on("message", async (topic, message) => {
 			case "sub":
 				subscribeToDoctorCalendar(payload);
 				break;
+			case "unsub":
+				unsubscribeFromDoctorCalendar(payload);
+				break;
 		}
 	}
   }
@@ -907,9 +910,8 @@ async function subscribeToDoctorCalendar(payload: any) {
 	}
 
 	// Add user to the list of subscribers
-	let oldSubscribersList = doctor.subscribers || [];
-	oldSubscribersList.push(userId);
-	const newSubscribersList = oldSubscribersList;
+	let newSubscribersList = doctor.subscribers || [];
+	newSubscribersList.push(userId);
 
 	try {
 		// Update the list of subscribers
@@ -923,11 +925,50 @@ async function subscribeToDoctorCalendar(payload: any) {
 		return;
 	}
 
-	// get subscribers
-	const doctor2 = await doctors.findOne({ _id: doctorId });
-	console.log(doctor2?.subscribers);
-
 	const message = `Subscribed to ${doctor.name}'s calendar`;
+
+	publishResponse(payload.reqId, { message });
+}
+
+async function unsubscribeFromDoctorCalendar(payload: any){
+	const userId = new ObjectId(payload.data.userId);
+	const doctorId = new ObjectId(payload.data.doctorId);
+
+	const doctor = await doctors.findOne({ _id: doctorId });
+	if (!doctor) {
+		publishResponse(payload.reqId, { message: "Doctor not found" });
+		return;
+	}
+
+	const user = await users.findOne({ _id: userId });
+	if (!user) {
+		publishResponse(payload.reqId, { message: "User not found" });
+		return;
+	}
+
+	// Check if user is already unsubscribed from the calendar
+	if(!doctor.subscribers?.some((subscriber: ObjectId) => subscriber.toString() === userId.toString())) {
+		publishResponse(payload.reqId, { message: "Cannot unsubscribe from a calendar you are not subscribed to" });
+		return;
+	}
+
+	// Remove the user from the list of subscribers
+	let oldSubscribersList = doctor.subscribers || [];
+	const newSubscribersList = oldSubscribersList.filter((subscriber: ObjectId) => subscriber.toString() !== userId.toString());
+
+	try {
+		// Update the list of subscribers
+		await doctors.updateOne(
+			{_id: doctorId},
+			{ $set: { subscribers: newSubscribersList } }
+		)
+	} catch (err){
+		console.log(err);
+		publishResponse(payload.reqId, { message: "An error occurred while unsubscribing from a calendar" })
+		return;
+	}
+
+	const message = `Unsubscribed from ${doctor.name}'s calendar`;
 
 	publishResponse(payload.reqId, { message });
 }
