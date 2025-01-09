@@ -22,37 +22,66 @@
       </mat-form-field>
       <button
         mat-flat-button
-        [disabled]="deleteInput.value.length == 0"
+        [disabled]="deleteInput.value.length != 24"
         (click)="deleteClinic(deleteInput.value)"
       >
         Delete
       </button>
     </form>
     <h2>Insert Clinic</h2>
-    <form>
+    <form [formGroup]="insertionForm" (ngSubmit)="insertClinic()">
       <mat-form-field>
         <mat-label>Name</mat-label>
-        <input required matInput placeholder="Name" />
+        <input
+          required
+          matInput
+          type="text"
+          formControlName="name"
+          placeholder="Name"
+        />
       </mat-form-field>
       <div class="pair">
         <mat-form-field>
           <mat-label>Latitude</mat-label>
-          <input required matInput placeholder="Latitude" />
+          <input
+            required
+            matInput
+            type="string"
+            formControlName="latitude"
+            placeholder="Latitude"
+          />
         </mat-form-field>
         <mat-form-field>
           <mat-label>Longitude</mat-label>
-          <input required matInput placeholder="Longitude" />
+          <input
+            required
+            matInput
+            type="string"
+            formControlName="longitude"
+            placeholder="Longitude"
+          />
         </mat-form-field>
       </div>
       <mat-form-field>
         <mat-label>City</mat-label>
-        <input required matInput placeholder="City" />
+        <input
+          required
+          matInput
+          type="text"
+          formControlName="city"
+          placeholder="City"
+        />
       </mat-form-field>
       <mat-form-field>
         <mat-label>Address</mat-label>
-        <textarea required matInput placeholder="Address"></textarea>
+        <textarea
+          required
+          matInput
+          formControlName="address"
+          placeholder="Address"
+        ></textarea>
       </mat-form-field>
-      <button mat-flat-button>Insert</button>
+      <button mat-flat-button type="submit">Insert</button>
     </form>
   </div>
   <div class="representative">

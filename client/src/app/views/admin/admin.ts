@@ -4,7 +4,12 @@ import { MatInputModule } from '@angular/material/input';
 import { Clinic } from '../../components/clinic/clinic.interface';
 import { HttpClient } from '@angular/common/http';
 import { MatProgressSpinner } from '@angular/material/progress-spinner';
-import { FormControl, FormsModule, ReactiveFormsModule } from '@angular/forms';
+import {
+  FormControl,
+  Validators,
+  FormsModule,
+  ReactiveFormsModule,
+} from '@angular/forms';
 import { Observable } from 'rxjs';
 import { map, startWith } from 'rxjs/operators';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -13,6 +18,7 @@ import { MatAutocompleteModule } from '@angular/material/autocomplete';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { HttpHeaders } from '@angular/common/http';
 import { getToken } from '../authentication/guard';
+import { FormBuilder } from '@angular/forms';
 
 @Component({
   templateUrl: './admin.html',
@@ -30,11 +36,32 @@ import { getToken } from '../authentication/guard';
 })
 export class Admin implements OnInit {
   private http = inject(HttpClient);
+  private formBuilder = inject(FormBuilder);
   private snackBar = inject(MatSnackBar);
 
   protected control = new FormControl('');
   protected clinics: Array<Clinic> | null | undefined;
   protected filteredClinics!: Observable<Clinic[] | null>;
+
+  protected insertionForm = this.formBuilder.group({
+    name: ['', Validators.required],
+    latitude: [
+      '',
+      [
+        Validators.required,
+        Validators.pattern(/^[-+]?([1-8]?\d(\.\d{1,6})?|90(\.0{1,6})?)$/),
+      ],
+    ],
+    longitude: [
+      '',
+      [
+        Validators.required,
+        Validators.pattern(/^[-+]?((1[0-7]\d(\.\d+)?)|(\d{1,2}(\.\d+)?))$/),
+      ],
+    ],
+    city: ['', Validators.required],
+    address: ['', Validators.required],
+  });
 
   ngOnInit(): void {
     this.filteredClinics = this.control.valueChanges.pipe(
@@ -93,7 +120,7 @@ export class Admin implements OnInit {
   }
 
   protected deleteClinic(identifier: string) {
-    if (!identifier || identifier.length == 0) {
+    if (!identifier || identifier.length != 24) {
       return;
     }
 
@@ -103,9 +130,9 @@ export class Admin implements OnInit {
       })
       .subscribe({
         next: (res: any) => {
-          if (res?.deledCount > 0) {
+          if (res?.deletedCount > 0) {
             this.clinics = this.clinics?.filter(
-              (clinic) => (clinic._id = identifier),
+              (clinic) => clinic._id != identifier,
             );
 
             this.snackBar.open('Clinic successfully removed.', 'Dismiss');
@@ -121,6 +148,70 @@ export class Admin implements OnInit {
             'There was an error deleting the clinic.',
             'Dismiss',
           );
+        },
+      });
+  }
+
+  protected insertClinic() {
+    if (!this.insertionForm.valid) {
+      this.snackBar.open('The provided data is not valid.', 'Dismiss');
+
+      return;
+    }
+
+    const clinicData = this.insertionForm.value;
+
+    this.http
+      .post<Array<any>>(
+        `http://localhost:3000/clinics/`,
+        {
+          name: clinicData.name,
+          location: {
+            latitude: clinicData.latitude,
+            longitude: clinicData.longitude,
+            city: clinicData.city,
+            address: clinicData.address,
+          },
+        },
+        {
+          headers: new HttpHeaders().set(
+            'Authorization',
+            `Bearer ${getToken()}`,
+          ),
+        },
+      )
+      .subscribe({
+        next: (res: any) => {
+          if (res.insertedId) {
+            const clinic = {
+              _id: String(res.insertedId),
+              name: clinicData.name,
+              location: {
+                latitude: Number(clinicData.latitude),
+                longitude: Number(clinicData.longitude),
+                city: clinicData.city,
+                address: clinicData.address,
+              },
+            } as Clinic | undefined;
+
+            if (clinic) {
+              this.clinics?.push(clinic);
+              this.snackBar.open(
+                'Clinic was successfully inserted.',
+                'Dismiss',
+              );
+            }
+          }
+        },
+        error: (err) => {
+          if (err?.status == 400) {
+            this.snackBar.open('The provided data is not valid.', 'Dismiss');
+          } else {
+            this.snackBar.open(
+              'There was an error creating the clinic.',
+              'Dismiss',
+            );
+          }
         },
       });
   }

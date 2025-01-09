@@ -57,6 +57,53 @@ router.get("/clinics/:id", (req: Request, res: Response) => {
 });
 
 /**
+ *  Create a clinic
+ *  Request Format:
+ *      Endpoint: /clinics
+ *      Body: { name: <string>, location: <Location> }
+ */
+router.post("/clinics", authMiddleware, (req: Request, res: Response) => {
+  if (!req.isAuth || req.user != "admin") {
+    res.status(401).send("Unauthorized");
+    return;
+  }
+
+  if (
+    !req.body ||
+    !req.body.name ||
+    req.body.name.length == 0 ||
+    !req.body.location ||
+    !req.body.location.latitude ||
+    !req.body.location.longitude ||
+    !req.body.location.city ||
+    req.body.location.city == 0 ||
+    !req.body.location.address ||
+    req.body.location.address == 0
+  ) {
+    res.status(400).send("Malformed body.");
+    return;
+  }
+
+  broker.publishToService(
+    ServiceType.Appointments,
+    "clinics/post",
+    {
+      name: req.body?.name,
+      location: req.body?.location,
+    },
+    {
+      onResponse(mres: MqttResponse) {
+        // todo: get status from response
+        res.status(200).send(mres.data);
+      },
+      onServiceError(msg: string) {
+        res.status(500).send(msg);
+      },
+    }
+  );
+});
+
+/**
  *  Delete a clinic
  *  Request Format:
  *      Endpoint: /clinics/:id

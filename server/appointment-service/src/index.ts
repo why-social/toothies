@@ -176,6 +176,15 @@ mqttClient.on("message", async (topic, message) => {
 
           publishResponse(payload.reqId, res);
         }
+
+        case "post": {
+          const res = await clinics.insertOne({
+            name: data.name,
+            location: data.location,
+          });
+
+          publishResponse(payload.reqId, res);
+        }
       }
     }
     case "appointments": {
