@@ -556,10 +556,11 @@ async function handleSlotRequest(payload: any) {
   const startDate = new Date(Number(payload.data.body.startDate));
   const doctorId = new ObjectId(payload.data.doctorId);
 
-  // TODO (once doctors are added to doctors collection) Check if the doctor exists
-  // const doctor = await doctors.findOne({_id: new Object(payload.doctorId)});
-  // if(!doctor)
-  // 	return mqttClient.publish(payload.responseTopic, JSON.stringify({message: "Doctor not found"}));
+  const doctor = await doctors.findOne({_id: doctorId});
+  if(!doctor){
+	publishResponse(payload.reqId, { message: "Doctor not found" });
+	return;
+  }
 
   // Check if the start time is before the current timme
   if (payload.data.body.startDate <= new Date()) {
@@ -650,21 +651,34 @@ async function handleSlotRequest(payload: any) {
   }
 }
 
-async function createSlot(
-  payload: any,
-  doctorId: ObjectId,
-  startDate: Date,
-  endDate: Date,
-) {
-  const slot = {
-    doctorId: doctorId,
-    startTime: startDate,
-    endTime: endDate,
-    bookedBy: null,
-    test: true,
-  };
-  await slots.insertOne(slot);
-  publishResponse(payload.reqId, { message: "Slot created" });
+async function createSlot(payload: any, doctorId: ObjectId, startDate: Date, endDate: Date) {
+	const slot = {
+		doctorId: doctorId,
+		startTime: startDate,
+		endTime: endDate,
+		bookedBy: null,
+		test: true,
+	};
+	// Notify the user that a new slot has been created
+	mqttClient.publish(
+		"notifications/subscription/slotCreated",
+		JSON.stringify({
+			timestamp: new Date(),
+			reqId: uniqid(),
+			data: {
+				doctorId: doctorId,
+				startTime: startDate,
+				endTime: endDate,
+				emailMessage: {
+					subject: "Booking Cancelled by Doctor",
+					text: `Your booking has been cancelled by doctor for ${payload.data.startTime}\nIf you have any questions, please contact the clinic.`,
+					html: `<p>Your booking has been cancelled by doctor for ${payload.data.startTime}</p><p>If you have any questions, please contact the clinic.</p>`,
+				},
+			},
+		}),
+	);
+	await slots.insertOne(slot);
+	publishResponse(payload.reqId, { message: "Slot created" });
 }
 
 async function deleteSlot(payload: any, doctorId: ObjectId, startDate: Date) {
