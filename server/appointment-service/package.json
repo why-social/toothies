@@ -11,7 +11,6 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@toothies-org/backup-manager": "^2.3.0",
     "dockerode": "^4.0.2",
     "mqtt": "^5.10.2",
     "uniqid": "^5.4.0"

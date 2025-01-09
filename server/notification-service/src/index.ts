@@ -1,29 +1,23 @@
 import { ServiceBroker } from "@toothies-org/mqtt-service-broker";
-import { ObjectId } from "mongodb";
+import { MongoClient, ObjectId } from "mongodb";
 import dotenv from "dotenv";
 import { sendEmail } from "./utils/sendEmail";
-import { DbManager } from "@toothies-org/backup-manager";
 
 dotenv.config();
 if (!process.env.ATLAS_CONN_STR) {
-	throw new Error("ATLAS_CONN_STR is not defined");
+  throw new Error("ATLAS_CONN_STR is not defined");
 }
 if (!process.env.MQTT_USERNAME) {
-	throw new Error("MQTT_USERNAME is not defined");
+  throw new Error("MQTT_USERNAME is not defined");
 }
 if (!process.env.MQTT_PASSWORD) {
-	throw new Error("MQTT_PASSWORD is not defined");
+  throw new Error("MQTT_PASSWORD is not defined");
 }
 
-const db = new DbManager(process.env.ATLAS_CONN_STR, ["users", "doctors"]);
-db.init()
-	.then(() => {
-		console.log("Connected to db");
-	})
-	.catch(() => {
-		throw new Error("Failed to connect to db");
-	});
-
+const atlasClient = new MongoClient(process.env.ATLAS_CONN_STR);
+const db = atlasClient.db("primary");
+const users = db.collection("users");
+const doctors = db.collection("doctors");
 
 // Notify a doctor via email
 // Topic: notifications/doctor
@@ -32,69 +26,66 @@ db.init()
 //   data: { userId: <string>, emailMessage: {subject: <string>, text: <string>, html: <string>} }
 // }
 const notifyDoctor = async (message: Buffer) => {
-	let data, reqId, timestamp;
-	try {
-		const payload = JSON.parse(message.toString());
-		data = payload.data;
-		reqId = payload.timestamp;
-		timestamp = payload.timestamp;
-	} catch (e) {
-		if (e instanceof Error) {
-			console.error(e.message);
-		} else {
-			console.error(e);
-		}
-		console.log(`Malformed request: ${message}`);
-		return;
-	}
+  let data, reqId, timestamp;
+  try {
+    const payload = JSON.parse(message.toString());
+    data = payload.data;
+    reqId = payload.timestamp;
+    timestamp = payload.timestamp;
+  } catch (e) {
+    if (e instanceof Error) {
+      console.error(e.message);
+    } else {
+      console.error(e);
+    }
+    console.log(`Malformed request: ${message}`);
+    return;
+  }
 
-	if (!data || !timestamp) {
-		console.error(`Malformed request: ${message}`);
-		return;
-	}
-	if (
-		!data.emailMessage ||
-		!data.emailMessage.subject ||
-		!data.emailMessage.text ||
-		!data.emailMessage.html
-	) {
-		console.error(`Missing required fields in request: ${message}`);
-		return;
-	}
+  if (!data || !timestamp) {
+    console.error(`Malformed request: ${message}`);
+    return;
+  }
+  if (
+    !data.emailMessage ||
+    !data.emailMessage.subject ||
+    !data.emailMessage.text ||
+    !data.emailMessage.html
+  ) {
+    console.error(`Missing required fields in request: ${message}`);
+    return;
+  }
 
+  const doctor = await doctors.findOne({
+    _id: new ObjectId(data.userId),
+  });
 
-	// Send email
-	try {
-		const doctor: any = await db.withConnection(() => {
-			return db.collections.get("doctors").findOne({
-				_id: new ObjectId(data.userId),
-			});
-		}, true);
+  if (!doctor) {
+    console.error(`Doctor not found: ${message}`);
+    return;
+  }
 
-		if (!doctor) {
-			console.error(`Doctor not found: ${message}`);
-			return;
-		}
+  if (!doctor.email) {
+    console.log(`Doctor ${doctor.name} does not have an email address`);
+    return;
+  }
 
-		if (!doctor.email) {
-			console.log(`Doctor ${doctor.name} does not have an email address`);
-			return;
-		}
-
-		await sendEmail(
-			doctor.email,
-			doctor.name,
-			data.emailMessage.subject,
-			data.emailMessage.text,
-			data.emailMessage.html,
-		);
-		console.log(
-			`Email sent to doctor: ${doctor.email}\nEmail text: ${data.emailMessage.text}`,
-		);
-	} catch (e) {
-		console.error("Failed to send email to doctor");
-		console.error(e);
-	}
+  // Send email
+  try {
+    await sendEmail(
+      doctor.email,
+      doctor.name,
+      data.emailMessage.subject,
+      data.emailMessage.text,
+      data.emailMessage.html,
+    );
+    console.log(
+      `Email sent to doctor: ${doctor.email}\nEmail text: ${data.emailMessage.text}`,
+    );
+  } catch (e) {
+    console.error(`Failed to send email to doctor: ${doctor.email}`);
+	console.log(e);
+  }
 };
 
 const notifyUser = async (message: Buffer) => {
@@ -123,25 +114,22 @@ const notifyUser = async (message: Buffer) => {
 		return;
 	}
 
+	const user = await users.findOne({
+		_id: new ObjectId(data.userId),
+	});
+
+	if (!user) {
+		console.error(`User not found: ${message}`);
+		return;
+	}
+
+	if (!user.email) {
+		console.log(`User ${user.name} does not have an email address`);
+		return;
+	}
 
 	// Send email
 	try {
-		const user: any = await db.withConnection(() => {
-			return db.collections.get("users").findOne({
-				_id: new ObjectId(data.userId),
-			});
-		}, true);
-
-		if (!user) {
-			console.error(`User not found: ${message}`);
-			return;
-		}
-
-		if (!user.email) {
-			console.log(`User ${user.name} does not have an email address`);
-			return;
-		}
-
 		await sendEmail(
 			user.email,
 			user.name,
@@ -153,8 +141,8 @@ const notifyUser = async (message: Buffer) => {
 			`Email sent to user: ${user.email}\nEmail text: ${data.emailMessage.text}`,
 		);
 	} catch (e) {
-		console.error("Failed to send email to user");
-		console.error(e);
+		console.error(`Failed to send email to user: ${user.email}`);
+		console.log(e);
 	}
 }
 

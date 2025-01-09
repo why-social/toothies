@@ -8,7 +8,6 @@
     "dev": "tsc && node dist/index.js"
   },
   "dependencies": {
-    "@toothies-org/backup-manager": "^2.3.0",
     "@toothies-org/mqtt-service-broker": "^1.0.0",
     "dockerode": "^4.0.2",
     "dotenv": "^16.4.5",
