@@ -3,7 +3,6 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatInputModule } from '@angular/material/input';
 import { Clinic } from '../../../components/clinic/clinic.interface';
 import { HttpClient } from '@angular/common/http';
-import { MatProgressSpinner } from '@angular/material/progress-spinner';
 import {
   FormControl,
   Validators,
@@ -21,6 +20,7 @@ import { getToken } from '../../authentication/guard';
 import { FormBuilder } from '@angular/forms';
 import { EventEmitter } from '@angular/core';
 import { Input, Output } from '@angular/core';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
 
 @Component({
   selector: 'admin-clinics',
@@ -29,7 +29,7 @@ import { Input, Output } from '@angular/core';
   imports: [
     MatButtonModule,
     MatInputModule,
-    MatProgressSpinner,
+    MatProgressBarModule,
     FormsModule,
     ReactiveFormsModule,
     MatFormFieldModule,
@@ -105,6 +105,8 @@ export class AdminClinics implements OnInit {
               (clinic) => clinic._id != identifier,
             );
 
+            this.invalidateControl();
+
             this.snackBar.open('Clinic successfully removed.', 'Dismiss');
           } else {
             this.snackBar.open(
@@ -166,6 +168,7 @@ export class AdminClinics implements OnInit {
 
             if (clinic) {
               this.clinics?.push(clinic);
+              this.invalidateControl();
               this.snackBar.open(
                 'Clinic was successfully inserted.',
                 'Dismiss',
@@ -184,5 +187,11 @@ export class AdminClinics implements OnInit {
           }
         },
       });
+  }
+
+  private invalidateControl() {
+    const controlValue = this.control.value;
+    this.control.setValue(null); // force an update
+    this.control.setValue(controlValue);
   }
 }

@@ -86,7 +86,7 @@
     </form>
   </div>
 } @else if (clinics === undefined) {
-  <mat-spinner />
+  <mat-progress-bar mode="indeterminate"></mat-progress-bar>
 } @else {
   <div class="exception">
     <span>Something went wrong</span>

@@ -3,7 +3,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatInputModule } from '@angular/material/input';
 import { Clinic } from '../../../components/clinic/clinic.interface';
 import { HttpClient } from '@angular/common/http';
-import { MatProgressSpinner } from '@angular/material/progress-spinner';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
 import {
   FormControl,
   Validators,
@@ -24,6 +24,7 @@ import { FormBuilder } from '@angular/forms';
 import { EventEmitter } from '@angular/core';
 import { Input, Output } from '@angular/core';
 import { Doctor } from '../../../components/doctor/doctor.interface';
+import { hashSync } from 'bcrypt-ts';
 
 @Component({
   selector: 'admin-doctors',
@@ -32,9 +33,9 @@ import { Doctor } from '../../../components/doctor/doctor.interface';
   imports: [
     MatButtonModule,
     MatInputModule,
-    MatProgressSpinner,
     FormsModule,
     ReactiveFormsModule,
+    MatProgressBarModule,
     MatFormFieldModule,
     MatAutocompleteModule,
     AsyncPipe,
@@ -57,7 +58,6 @@ export class AdminDoctors implements OnInit {
       '',
       [
         Validators.required,
-        Validators.pattern(/^[a-fA-F0-9]{24}$/),
         (control: AbstractControl): ValidationErrors | null => {
           const value = control.value;
 
@@ -134,7 +134,7 @@ export class AdminDoctors implements OnInit {
       return;
     }
 
-    /*this.http
+    this.http
       .delete<Array<any>>(`http://localhost:3000/doctors/${identifier}`, {
         headers: new HttpHeaders().set('Authorization', `Bearer ${getToken()}`),
       })
@@ -142,8 +142,10 @@ export class AdminDoctors implements OnInit {
         next: (res: any) => {
           if (res?.deletedCount > 0) {
             this.doctors = this.doctors?.filter(
-              (clinic) => clinic._id != identifier,
+              (doctor) => doctor._id != identifier,
             );
+
+            this.invalidateControl();
 
             this.snackBar.open('Doctor successfully removed.', 'Dismiss');
           } else {
@@ -159,8 +161,73 @@ export class AdminDoctors implements OnInit {
             'Dismiss',
           );
         },
-      });*/
+      });
   }
 
-  protected insertDoctor() {}
+  protected insertDoctor() {
+    const doctorData = this.insertionForm.value;
+
+    if (!this.insertionForm.valid || !doctorData.password) {
+      this.snackBar.open('The provided data is not valid.', 'Dismiss');
+
+      return;
+    }
+
+    this.http
+      .post<Array<any>>(
+        `http://localhost:3000/doctors/`,
+        {
+          name: doctorData.name,
+          type: doctorData.type,
+          clinic: doctorData.clinic,
+          email: doctorData.mail,
+          passwordHash: hashSync(doctorData.password),
+        },
+        {
+          headers: new HttpHeaders().set(
+            'Authorization',
+            `Bearer ${getToken()}`,
+          ),
+        },
+      )
+      .subscribe({
+        next: (res: any) => {
+          if (res.insertedId) {
+            const doctor = {
+              _id: String(res.insertedId),
+              name: doctorData.name,
+              type: doctorData.type,
+              clinic: this.clinics?.find(
+                (clinic) => clinic._id == doctorData.clinic,
+              ),
+            } as Doctor | undefined;
+
+            if (doctor) {
+              this.doctors?.push(doctor);
+              this.invalidateControl();
+              this.snackBar.open(
+                'Doctor was successfully inserted.',
+                'Dismiss',
+              );
+            }
+          }
+        },
+        error: (err) => {
+          if (err?.status == 400) {
+            this.snackBar.open('The provided data is not valid.', 'Dismiss');
+          } else {
+            this.snackBar.open(
+              'There was an error creating the doctor.',
+              'Dismiss',
+            );
+          }
+        },
+      });
+  }
+
+  private invalidateControl() {
+    const controlValue = this.doctorsControl.value;
+    this.doctorsControl.setValue(null); // force an update
+    this.doctorsControl.setValue(controlValue);
+  }
 }

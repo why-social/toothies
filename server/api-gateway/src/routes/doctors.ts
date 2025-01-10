@@ -3,6 +3,7 @@ import { broker } from "../index";
 import { ServiceType } from "../types/ServiceType";
 import { MqttResponse } from "../services/MqttMessages";
 import { authMiddleware } from "../middleware/auth";
+import { ObjectId } from "mongodb";
 
 const router = Router();
 
@@ -24,7 +25,7 @@ router.get("/doctors", (req: Request, res: Response) => {
       onServiceError(msg: string) {
         res.status(500).send(msg);
       },
-    },
+    }
   );
 });
 
@@ -56,7 +57,7 @@ router.get(
           onServiceError(msg: string) {
             res.status(500).send(msg);
           },
-        },
+        }
       );
     } else if (req.query.patientName) {
       broker.publishToService(
@@ -71,12 +72,12 @@ router.get(
           onServiceError(msg: string) {
             res.status(500).send(msg);
           },
-        },
+        }
       );
     } else {
       res.status(400).send("Invalid request");
     }
-  },
+  }
 );
 
 /**
@@ -105,9 +106,9 @@ router.get(
         onServiceError(msg: string) {
           res.status(500).send(msg);
         },
-      },
+      }
     );
-  },
+  }
 );
 
 /*
@@ -115,26 +116,111 @@ router.get(
  *  Request Format:
  *      Endpoint: /doctor/appointments/:id
  */
-router.delete("/doctor/appointments", authMiddleware, (req: Request, res: Response) => {
-	if (!req.isAuth || !req.user) {
-		res.status(401).send("Unauthorized");
-		return;
-	}
+router.delete(
+  "/doctor/appointments",
+  authMiddleware,
+  (req: Request, res: Response) => {
+    if (!req.isAuth || !req.user) {
+      res.status(401).send("Unauthorized");
+      return;
+    }
 
-	broker.publishToService(
-		ServiceType.Appointments,
-		"appointments/cancelByDoc",
-		{ doctorId: req.user, startTime: req.body.startTime },
-		{
-			onResponse(mres: MqttResponse) {
-				// todo: get status from response
-				res.status(200).send(mres.data);
-			},
-			onServiceError(msg: string) {
-				res.status(500).send(msg);
-			},
-		},
-	);
-})
+    broker.publishToService(
+      ServiceType.Appointments,
+      "appointments/cancelByDoc",
+      { doctorId: req.user, startTime: req.body.startTime },
+      {
+        onResponse(mres: MqttResponse) {
+          // todo: get status from response
+          res.status(200).send(mres.data);
+        },
+        onServiceError(msg: string) {
+          res.status(500).send(msg);
+        },
+      }
+    );
+  }
+);
+
+/**
+ *  Create a doctor
+ *  Request Format:
+ *      Endpoint: /clinics
+ *      Body: { name: <string>, type: <string>, clinic: <ObjectId>, email: <string>, passwordHash: <string> }
+ */
+router.post("/doctors", authMiddleware, (req: Request, res: Response) => {
+  if (!req.isAuth || req.user != "admin") {
+    res.status(401).send("Unauthorized");
+    return;
+  }
+
+  if (
+    !req.body ||
+    !req.body.name ||
+    req.body.name.length == 0 ||
+    !req.body.email ||
+    req.body.email.length == 0 ||
+    !req.body.passwordHash ||
+    req.body.passwordHash.length == 0 ||
+    !req.body.clinic
+  ) {
+    res.status(400).send("Malformed body.");
+    return;
+  }
+
+  broker.publishToService(
+    ServiceType.Appointments,
+    "doctors/post",
+    {
+      name: req.body.name,
+      type:
+        req.body.type && req.body.type.length > 0 ? req.body.type : undefined,
+      email: req.body.email,
+      clinic: req.body.clinic,
+      passwordHash: req.body.passwordHash,
+    },
+    {
+      onResponse(mres: MqttResponse) {
+        // todo: get status from response
+        res.status(200).send(mres.data);
+      },
+      onServiceError(msg: string) {
+        res.status(500).send(msg);
+      },
+    }
+  );
+});
+
+/**
+ *  Delete a doctor
+ *  Request Format:
+ *      Endpoint: /doctors/:id
+ */
+router.delete("/doctors/:id", authMiddleware, (req: Request, res: Response) => {
+  if (!req.params.id) {
+    res.status(400).send("No id");
+    return;
+  }
+
+  if (!req.isAuth || req.user != "admin") {
+    res.status(401).send("Unauthorized");
+    return;
+  }
+
+  broker.publishToService(
+    ServiceType.Appointments,
+    "doctors/delete",
+    { doctorId: req.params.id },
+    {
+      onResponse(mres: MqttResponse) {
+        // todo: get status from response
+        res.status(200).send(mres.data);
+      },
+      onServiceError(msg: string) {
+        res.status(500).send(msg);
+      },
+    }
+  );
+});
 
 export default router;

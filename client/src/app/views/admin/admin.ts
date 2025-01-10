@@ -79,7 +79,7 @@ export class Admin implements OnInit, AfterViewInit {
   protected fetchDoctors(): void {
     this.doctors = undefined;
 
-    this.http.get<Array<any>>(`http://localhost:3000/clinics`).subscribe({
+    this.http.get<Array<any>>(`http://localhost:3000/doctors`).subscribe({
       next: (data) => {
         this.doctors = data
           .filter((el) => el.name && el._id && el.clinic)
