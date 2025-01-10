@@ -29,6 +29,11 @@
   <div class="container">
     <calendar [slots]="slots" (openEvent)="openDialog($event)" />
   </div>
-} @else {
+} @else if (doctorName === undefined || clinicName === undefined) {
   <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+} @else {
+  <div class="exception">
+    <span>Something went wrong</span>
+    <button mat-stroked-button (click)="fetchData()">Reload</button>
+  </div>
 }

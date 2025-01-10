@@ -10,6 +10,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { getToken } from '../authentication/guard';
 import { Socket } from 'ngx-socket-io';
+import { MatSnackBar } from '@angular/material/snack-bar';
 
 @Injectable({ providedIn: 'root' })
 @Component({
@@ -19,15 +20,16 @@ import { Socket } from 'ngx-socket-io';
 })
 export class Booking {
   readonly dialog = inject(MatDialog);
+  private snackBar = inject(MatSnackBar);
+
   private http = inject(HttpClient);
   private route = inject(ActivatedRoute);
   private socket = inject(Socket);
 
   protected slots: Array<CalendarSlot> = [];
-  protected doctorName: string | null = null;
-  protected clinicName: string | null = null;
-
-  protected subscribed!: boolean;
+  protected doctorName!: string | null | undefined;
+  protected clinicName!: string | null | undefined;
+  protected subscribed!: boolean | undefined;
 
   private doctorId: string | null = null;
   private openedDialog: CalendarSlot | null = null;
@@ -36,73 +38,84 @@ export class Booking {
     this.route.paramMap.subscribe((params) => {
       this.doctorId = params.get('id');
 
-      if (this.doctorId) {
-        this.fetchSlots();
-        this.socket.on(this.doctorId, (msg: any) => {
-          const update = JSON.parse(msg);
-
-          let slot = this.slots.find(
-            (el) => el.startTime.toISOString() == update.startTime,
-          );
-
-          if (slot) {
-            slot.bookedBy = update.bookedBy;
-
-            if (this.openedDialog == slot) {
-              this.dialog.closeAll();
-
-              alert(
-                'Unfortunately, this slot has been booked by someone else!',
-              );
-            }
-          }
-        });
-      }
+      this.fetchData();
     });
-
-    this.http
-      .get<any>(
-        `http://localhost:3000/subscriptions/doctors/${this.doctorId}`,
-        {
-          headers: new HttpHeaders().set(
-            'Authorization',
-            `Bearer ${getToken()}`,
-          ),
-        },
-      )
-      .subscribe({
-        next: (data) => {
-          if (data) {
-            this.subscribed = data.subscribed;
-          }
-        },
-      });
   }
 
-  private fetchSlots() {
-    this.http
-      .get<any>(
-        `http://localhost:3000/appointments?doctorId=${this.doctorId}`,
-        {
-          headers: new HttpHeaders().set(
-            'Authorization',
-            `Bearer ${getToken()}`,
-          ),
-        },
-      )
-      .subscribe({
-        next: (data) => {
-          this.doctorName = data.doctor.name;
-          this.clinicName = data.doctor.clinic.name;
+  protected fetchData() {
+    if (this.doctorId) {
+      this.doctorName = undefined;
+      this.clinicName = undefined;
+      this.subscribed = undefined;
 
-          this.slots = data.slots.map((it: CalendarSlot) => ({
-            doctorId: data.doctor._id,
-            startTime: new Date(it.startTime),
-            endTime: new Date(it.endTime),
-            bookedBy: it.bookedBy,
-          }));
-        },
+      this.http
+        .get<any>(
+          `http://localhost:3000/appointments?doctorId=${this.doctorId}`,
+          {
+            headers: new HttpHeaders().set(
+              'Authorization',
+              `Bearer ${getToken()}`,
+            ),
+          },
+        )
+        .subscribe({
+          next: (data) => {
+            this.doctorName = data.doctor.name;
+            this.clinicName = data.doctor.clinic.name;
+
+            this.slots = data.slots.map((it: CalendarSlot) => ({
+              doctorId: data.doctor._id,
+              startTime: new Date(it.startTime),
+              endTime: new Date(it.endTime),
+              bookedBy: it.bookedBy,
+            }));
+          },
+          error: () => {
+            this.doctorName = null;
+            this.clinicName = null;
+          },
+        });
+
+      this.http
+        .get<any>(
+          `http://localhost:3000/subscriptions/doctors/${this.doctorId}`,
+          {
+            headers: new HttpHeaders().set(
+              'Authorization',
+              `Bearer ${getToken()}`,
+            ),
+          },
+        )
+        .subscribe({
+          next: (data) => {
+            if (data) {
+              this.subscribed = data.subscribed;
+            }
+          },
+        });
+
+      this.socket.disconnect(); // remove prior connection
+      this.socket.on(this.doctorId, (msg: any) => {
+        const update = JSON.parse(msg);
+
+        let slot = this.slots.find(
+          (el) => el.startTime.toISOString() == update.startTime,
+        );
+
+        if (slot) {
+          slot.bookedBy = update.bookedBy;
+
+          if (this.openedDialog == slot) {
+            this.dialog.closeAll();
+
+            this.snackBar.open(
+              'Unfortunately, this slot has been booked by someone else!',
+              'Dismiss',
+            );
+          }
+        }
       });
+    }
   }
 
   public openDialog(slot: CalendarSlot) {

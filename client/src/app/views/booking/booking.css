@@ -38,3 +38,20 @@ h2 {
   display: block;
   position: relative;
 }
+
+.exception {
+  width: 100% !important;
+  position: absolute;
+  top: 50%;
+  left: 0;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  color: var(--mat-sys-on-background);
+  gap: 1rem;
+  flex-direction: column;
+}
+
+.exception > button {
+  width: fit-content;
+}
