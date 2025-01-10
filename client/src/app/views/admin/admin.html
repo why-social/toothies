@@ -1,0 +1,18 @@
+<mat-tab-group mat-stretch-tabs="true" mat-align-tabs="center" preserveContent>
+  <mat-tab label="Doctors">
+    <admin-doctors
+      [doctors]="doctors"
+      [clinics]="clinics"
+      (reloadEvent)="fetchClinics(); fetchDoctors()"
+    ></admin-doctors>
+  </mat-tab>
+  <mat-tab label="Clinics">
+    <admin-clinics
+      [clinics]="clinics"
+      (reloadEvent)="fetchClinics()"
+    ></admin-clinics>
+  </mat-tab>
+</mat-tab-group>
+<div class="representative">
+  <img src="./assets/admin.svg" #representative />
+</div>
