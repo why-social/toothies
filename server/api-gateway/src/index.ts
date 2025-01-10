@@ -8,6 +8,7 @@ import auth from "./routes/auth";
 import clinics from "./routes/clinics";
 import doctors from "./routes/doctors";
 import slots from "./routes/slots";
+import subscriptions from "./routes/subscriptions";
 
 const app: Express = express();
 const port: number = 3000;
@@ -48,6 +49,7 @@ app.use("/", auth);
 app.use("/", clinics);
 app.use("/", doctors);
 app.use("/", slots);
+app.use("/", subscriptions);
 
 app.use("/", (req: Request, res: Response, next: NextFunction) => {
   res.send("API Gateway");

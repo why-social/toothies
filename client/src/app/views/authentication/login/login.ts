@@ -69,9 +69,7 @@ export class Login {
 
             this.logging = false;
           },
-          error: (error) => {
-            console.error("Error registering user: ", error);
-
+          error: () => {
             this.logging = false;
           },
         });

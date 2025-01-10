@@ -10,6 +10,7 @@
 
 .container {
   max-width: 400px;
+  width: 100%;
 }
 
 .section {
@@ -58,6 +59,8 @@ button {
   height: 100%;
   object-fit: contain;
   max-width: 700px;
+  padding: 2rem;
+  box-sizing: border-box;
   left: 50%;
   top: 50%;
   transform: translateX(-50%) translateY(-50%);

@@ -7,11 +7,18 @@
   position: relative;
 }
 
-.details {
-  color: var(--mat-sys-on-background);
+.detail-container {
+  display: flex;
+  flex-direction: row;
+  gap: 1rem;
   margin-bottom: 1rem;
   margin-left: 1rem;
   margin-right: 1rem;
+}
+
+.details {
+  color: var(--mat-sys-on-background);
+  flex-grow: 1;
 }
 
 h2 {
@@ -30,4 +37,21 @@ h2 {
   overflow: hidden;
   display: block;
   position: relative;
+}
+
+.exception {
+  width: 100% !important;
+  position: absolute;
+  top: 50%;
+  left: 0;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  color: var(--mat-sys-on-background);
+  gap: 1rem;
+  flex-direction: column;
+}
+
+.exception > button {
+  width: fit-content;
 }
