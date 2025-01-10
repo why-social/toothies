@@ -166,8 +166,36 @@ mqttClient.on("message", async (topic, message) => {
           }
 
           publishResponse(payload.reqId, res);
+          break;
+        }
+
+        case "delete": {
+          const res = await clinics.deleteOne({
+            _id: new ObjectId(data.clinicId),
+          });
+
+          if (res.deletedCount > 0) {
+            await doctors.deleteMany({
+              clinic: new ObjectId(data.clinicId),
+            });
+          }
+
+          publishResponse(payload.reqId, res);
+          break;
+        }
+
+        case "post": {
+          const res = await clinics.insertOne({
+            name: data.name,
+            location: data.location,
+          });
+
+          publishResponse(payload.reqId, res);
+          break;
         }
       }
+
+      break;
     }
     case "appointments": {
       if (!action) {
@@ -185,9 +213,32 @@ mqttClient.on("message", async (topic, message) => {
 
     case "doctors": {
       switch (action) {
-        case "get":
+        case "get": {
           await getAllDoctors(payload);
           break;
+        }
+
+        case "delete": {
+          const res = await doctors.deleteOne({
+            _id: new ObjectId(data.doctorId),
+          });
+
+          publishResponse(payload.reqId, res);
+          return;
+        }
+
+        case "post": {
+          const res = await doctors.insertOne({
+            name: data.name,
+            type: data.type,
+            clinic: data.clinic,
+            email: data.email,
+            passwordHash: data.passwordHash,
+          });
+
+          publishResponse(payload.reqId, res);
+          return;
+        }
       }
       break;
     }

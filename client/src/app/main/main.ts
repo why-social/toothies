@@ -2,7 +2,7 @@ import { Component, inject } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { Router } from '@angular/router';
 import { MatIcon } from '@angular/material/icon';
-import { AuthGuard } from '../views/authentication/guard';
+import { AdminGuard, AuthGuard } from '../views/authentication/guard';
 import { MatButtonModule } from '@angular/material/button';
 
 @Component({
@@ -20,7 +20,7 @@ export class Main {
     this.router.navigateByUrl('login');
   }
 
-  isLoginGuardProtected(): boolean {
+  isGuardProtected(): boolean {
     let currentRoute = this.router.routerState.root;
     while (currentRoute.firstChild) {
       currentRoute = currentRoute.firstChild;
@@ -28,9 +28,9 @@ export class Main {
 
     const currentRouteConfig = currentRoute?.routeConfig;
 
-    if (currentRouteConfig?.canActivate) {
-      for (const guard of currentRouteConfig.canActivate) {
-        if (guard.name == AuthGuard.name) {
+    if (currentRouteConfig?.canMatch) {
+      for (const guard of currentRouteConfig.canMatch) {
+        if (guard.name == AuthGuard.name || guard.name == AdminGuard.name) {
           return true;
         }
       }

@@ -32,6 +32,10 @@ app-root {
   width: 100%;
 }
 
+.mat-mdc-tab-body-content {
+  overflow: hidden!important;
+}
+
 @media screen and (min-width: 768px) {
   app-root {
     max-width: 768px;

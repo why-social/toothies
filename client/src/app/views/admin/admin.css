@@ -1,0 +1,52 @@
+:host {
+  display: flex;
+  flex-direction: row;
+  flex-grow: 1;
+  min-height: 100%;
+}
+
+mat-tab-group {
+  width: 100%;
+}
+
+.representative {
+  width: 100%;
+  position: relative;
+  display: none;
+}
+
+.representative > img {
+  position: fixed;
+  height: 100%;
+  padding: 2rem;
+  box-sizing: border-box;
+  width: 100%;
+  object-fit: contain;
+  top: 0;
+}
+
+@media screen and (min-width: 992px) {
+  .representative {
+    display: unset;
+  }
+
+  .representative > img {
+    max-width: 592px;
+  }
+
+  mat-tab-group {
+    max-width: 400px;
+  }
+}
+
+@media screen and (min-width: 1200px) {
+  .representative > img {
+    max-width: 800px;
+  }
+}
+
+@media screen and (min-width: 1400px) {
+  .representative > img {
+    max-width: 1000px;
+  }
+}
