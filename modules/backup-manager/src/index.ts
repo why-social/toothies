@@ -188,15 +188,15 @@ export class DbManager {
 
   public async withConnection<T>(operation: () => Promise<T>, isRead: boolean): Promise<T> {
     if (!this.isReady) {
-      throw new Error("Database not ready");
+      throw new DatabaseError({ type: "NotReady", message: "Database not ready" });
     }
 
     if (!this.db) {
-      throw new Error("No database connection");
+      throw new DatabaseError({ type: "NoConnection", message: "No database connection" });
     }
 
     if (this.backupMode && !isRead) {
-      throw new Error("Only reads are allowed while in backup mode");
+      throw new DatabaseError({ type: "WriteNotAllowed", message: "Only reads are allowed while in backup mode" });
     }
 
     return operation();
