@@ -4,6 +4,7 @@ import { sign, PrivateKey } from "jsonwebtoken";
 import { compare } from "bcrypt-ts";
 import { User } from "./types/User";
 import { DbManager } from "@toothies-org/backup-manager";
+import { DatabaseError } from "@toothies-org/backup-manager/dist/types/databaseError";
 
 dotenv.config();
 if (!process.env.ATLAS_CONN_STR) {
@@ -122,7 +123,12 @@ const authenticateUser = async (message: Buffer) => {
       broker.publishError(reqId, "Incorrect password");
     }
   } catch (e) {
-    broker.publishError(reqId, "Unable to process request");
+    if (e instanceof DatabaseError) {
+      broker.publishResponse(reqId, JSON.parse(e.message));
+    } else {
+      broker.publishError(reqId, `Unable to process request: ${e}`);
+    }
+    console.error("Failed to process request", e);
   }
 };
 
@@ -202,8 +208,12 @@ const createUser = async (message: Buffer) => {
       console.error(`User already exists: \n${message}`);
     }
   } catch (e) {
-    broker.publishError(reqId, `Unable to process request: ${e}`);
-    console.error(e);
+    if (e instanceof DatabaseError) {
+      broker.publishResponse(reqId, JSON.parse(e.message));
+    } else {
+      broker.publishError(reqId, `Unable to process request: ${e}`);
+    }
+    console.error("Failed to process request", e);
   }
 };
 

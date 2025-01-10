@@ -5,6 +5,7 @@ import os from "os";
 import dotenv from "dotenv";
 import { Service } from "./types/Service";
 import { DbManager } from "@toothies-org/backup-manager";
+import { DatabaseError } from "@toothies-org/backup-manager/dist/types/databaseError";
 import { ObjectId } from "mongodb";
 
 dotenv.config();
@@ -164,7 +165,11 @@ mqttClient.on("message", async (topic, message) => {
             }
             publishResponse(payload.reqId, res);
           } catch (e) {
-            publishResponse(payload.reqId, { message: e });
+            if (e instanceof DatabaseError) {
+              publishResponse(payload.reqId, JSON.parse(e.message));
+            } else {
+              publishResponse(payload.reqId, { message: e });
+            }
             console.error("Failed to process request", e);
           }
         }
@@ -248,8 +253,12 @@ async function handleAppointmentsRequest(payload: any) {
 
         publishResponse(payload.reqId, res);
       } catch (e) {
-        console.error("Unable to process request", e);
-        publishResponse(payload.reqId, { message: e });
+        if (e instanceof DatabaseError) {
+          publishResponse(payload.reqId, JSON.parse(e.message));
+        } else {
+          publishResponse(payload.reqId, { message: e });
+        }
+        console.error("Failed to process request", e);
       }
 
       break;
@@ -322,8 +331,12 @@ async function handleAppointmentsRequest(payload: any) {
         );
         console.log(`Slot successfully booked: ${payload.data.startTime}`);
       } catch (e) {
-        console.error("Unable to process request", e);
-        publishResponse(payload.reqId, { message: e });
+        if (e instanceof DatabaseError) {
+          publishResponse(payload.reqId, JSON.parse(e.message));
+        } else {
+          publishResponse(payload.reqId, { message: e });
+        }
+        console.error("Failed to process request", e);
       }
       break;
 
@@ -407,8 +420,12 @@ async function handleAppointmentsRequest(payload: any) {
 
         console.log(`Booking successfully cancelled: ${payload.data.startTime}`);
       } catch (e) {
-        console.error("Unable to process request", e);
-        publishResponse(payload.reqId, { message: e });
+        if (e instanceof DatabaseError) {
+          publishResponse(payload.reqId, JSON.parse(e.message));
+        } else {
+          publishResponse(payload.reqId, { message: e });
+        }
+        console.error("Failed to process request", e);
       }
       break;
 
@@ -537,8 +554,12 @@ async function cancelAppointmentByDoctor(payload: any) {
 
     console.log(`Booking successfully cancelled by doctor: ${payload.data.startTime}`);
   } catch (e) {
-    console.error("Unable to process request", e);
-    publishResponse(payload.reqId, { message: e });
+    if (e instanceof DatabaseError) {
+      publishResponse(payload.reqId, JSON.parse(e.message));
+    } else {
+      publishResponse(payload.reqId, { message: e });
+    }
+    console.error("Failed to process request", e);
   }
 }
 
@@ -573,8 +594,12 @@ async function getAllDoctors(payload: any) {
     }, true);
     publishResponse(payload.reqId, allDoctors);
   } catch (e) {
-    console.error("Unable to process request", e);
-    publishResponse(payload.reqId, { message: e });
+    if (e instanceof DatabaseError) {
+      publishResponse(payload.reqId, JSON.parse(e.message));
+    } else {
+      publishResponse(payload.reqId, { message: e });
+    }
+    console.error("Failed to process request", e);
   }
 }
 
@@ -664,8 +689,12 @@ async function handleSlotRequest(payload: any) {
         return;
       }
     } catch (e) {
-      console.error("Unable to process request", e);
-      publishResponse(payload.reqId, { message: e });
+      if (e instanceof DatabaseError) {
+        publishResponse(payload.reqId, JSON.parse(e.message));
+      } else {
+        publishResponse(payload.reqId, { message: e });
+      }
+      console.error("Failed to process request", e);
     }
   }
 
@@ -707,8 +736,12 @@ async function createSlot(
     await db.withConnection(() => { return db.collections.get("slots").insertOne(slot) }, false);
     publishResponse(payload.reqId, { message: "Slot created" });
   } catch (e) {
-    console.error("Unable to process request", e);
-    publishResponse(payload.reqId, { message: e });
+    if (e instanceof DatabaseError) {
+      publishResponse(payload.reqId, JSON.parse(e.message));
+    } else {
+      publishResponse(payload.reqId, { message: e });
+    }
+    console.error("Failed to process request", e);
   }
 }
 
@@ -730,8 +763,12 @@ async function deleteSlot(payload: any, doctorId: ObjectId, startDate: Date) {
     await db.withConnection(() => { return db.collections.get("slots").deleteOne({ _id: slot._id }) }, false);
     publishResponse(payload.reqId, { message: "Slot deleted" });
   } catch (e) {
-    console.error("Unable to process request", e);
-    publishResponse(payload.reqId, { message: e });
+    if (e instanceof DatabaseError) {
+      publishResponse(payload.reqId, JSON.parse(e.message));
+    } else {
+      publishResponse(payload.reqId, { message: e });
+    }
+    console.error("Failed to process request", e);
   }
 }
 
@@ -779,8 +816,12 @@ async function editSlot(
     }, false);
     publishResponse(payload.reqId, { message: "Slot edited" });
   } catch (e) {
-    console.error("Unable to process request", e);
-    publishResponse(payload.reqId, { message: e });
+    if (e instanceof DatabaseError) {
+      publishResponse(payload.reqId, JSON.parse(e.message));
+    } else {
+      publishResponse(payload.reqId, { message: e });
+    }
+    console.error("Failed to process request", e);
   }
 }
 
@@ -830,8 +871,12 @@ async function getAppointmentsForDoctorOnDate(payload: any) {
     }, true);
     publishResponse(payload.reqId, dateAppointments);
   } catch (e) {
-    console.error("Unable to process request", e);
-    publishResponse(payload.reqId, { message: e });
+    if (e instanceof DatabaseError) {
+      publishResponse(payload.reqId, JSON.parse(e.message));
+    } else {
+      publishResponse(payload.reqId, { message: e });
+    }
+    console.error("Failed to process request", e);
   }
 }
 
@@ -911,8 +956,12 @@ async function getAppointmentsForDoctorPerPatient(payload: any) {
 
     publishResponse(reqId, appointmentsWithNames);
   } catch (e) {
-    console.error("Unable to process request", e);
-    publishResponse(payload.reqId, { message: e });
+    if (e instanceof DatabaseError) {
+      publishResponse(payload.reqId, JSON.parse(e.message));
+    } else {
+      publishResponse(payload.reqId, { message: e });
+    }
+    console.error("Failed to process request", e);
   }
 }
 
@@ -959,7 +1008,11 @@ async function getAppointmentsForUser(payload: any) {
 
     publishResponse(reqId, userAppointments);
   } catch (e) {
-    console.error("Unable to process request", e);
-    publishResponse(payload.reqId, { message: e });
+    if (e instanceof DatabaseError) {
+      publishResponse(payload.reqId, JSON.parse(e.message));
+    } else {
+      publishResponse(payload.reqId, { message: e });
+    }
+    console.error("Failed to process request", e);
   }
 }
