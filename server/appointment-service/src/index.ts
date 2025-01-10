@@ -372,6 +372,25 @@ async function handleAppointmentsRequest(payload: any) {
           },
         })
       );
+
+	// Notify the user that a booking has been confirmed
+	mqttClient.publish(
+		"notifications/user",
+		JSON.stringify({
+			timestamp: new Date(),
+			reqId: uniqid(),
+			data: {
+				userId: payload.data.userId,
+				emailMessage: {
+					subject: "Booking Confirmed",
+					text: `Your booking has been confirmed for ${payload.data.startTime}\nIf you have any questions, please contact the clinic.`,
+					html: `<p>Your booking has been confirmed for ${payload.data.startTime}</p><p>If you have any questions, please contact the clinic.</p>`,
+				},
+			},
+		})
+	);
+
+
       console.log(`Slot successfully booked: ${payload.data.startTime}`);
       break;
 
@@ -445,6 +464,23 @@ async function handleAppointmentsRequest(payload: any) {
           },
         })
       );
+
+	  // Notify the user that a booking has been cancelled
+		mqttClient.publish(
+			"notifications/user",
+			JSON.stringify({
+				timestamp: new Date(),
+				reqId: uniqid(),
+				data: {
+					userId: payload.data.userId,
+					emailMessage: {
+						subject: "Booking Cancelled",
+						text: `Your booking has been cancelled for ${payload.data.startTime}\nIf you have any questions, please contact the clinic.`,
+						html: `<p>Your booking has been cancelled for ${payload.data.startTime}</p><p>If you have any questions, please contact the clinic.</p>`,
+					},
+				},
+			})
+		);
 
       console.log(`Booking successfully cancelled: ${payload.data.startTime}`);
       break;
