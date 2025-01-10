@@ -7,27 +7,27 @@ import { authMiddleware } from "../middleware/auth";
 const router = Router();
 
 /**
- *  Subscribe to doctor's calendar
+ *  Get doctor subscription status
  *  Request Format:
- *      Endpoint: /subscriptions/doctors
+ *      Endpoint: /subscriptions/doctors/:id
  */
-router.post("/subscriptions/doctors", authMiddleware, (req: Request, res: Response) => {
-    if (!req.isAuth || !req.user) {
+router.get("/subscriptions/doctors/:id", authMiddleware, (req: Request, res: Response) => {
+	if (!req.isAuth || !req.user) {
         res.status(401).send("Unauthorized");
         return;
     }
 
-    if(!req.body.doctorId){
+    if(!req.params.id){
 		res.status(400).send("Doctor Id is not provided");
 		return;
     }
 
 	broker.publishToService(
         ServiceType.Appointments,
-        "subscriptions/sub",
+        "subscriptions/isSub",
         {
             userId: req.user.toString(),
-            doctorId: req.body.doctorId.toString(),
+            doctorId: req.params.id.toString(),
         },
         {
             onResponse(mres: MqttResponse) {
@@ -41,13 +41,53 @@ router.post("/subscriptions/doctors", authMiddleware, (req: Request, res: Respon
     );
 });
 
-router.delete("/subscriptions/doctors", authMiddleware, (req: Request, res: Response) => {
+/**
+ *  Subscribe to doctor's calendar
+ *  Request Format:
+ *      Endpoint: /subscriptions/doctors/:id
+ */
+router.post("/subscriptions/doctors/:id", authMiddleware, (req: Request, res: Response) => {
+    if (!req.isAuth || !req.user) {
+        res.status(401).send("Unauthorized");
+        return;
+    }
+
+    if(!req.params.id){
+		res.status(400).send("Doctor Id is not provided");
+		return;
+    }
+
+	broker.publishToService(
+        ServiceType.Appointments,
+        "subscriptions/sub",
+        {
+            userId: req.user.toString(),
+            doctorId: req.params.id.toString(),
+        },
+        {
+            onResponse(mres: MqttResponse) {
+                // todo: get status from response
+                res.status(200).send(mres.data);
+            },
+            onServiceError(msg: string) {
+                res.status(500).send(msg);
+            },
+        },
+    );
+});
+
+/**
+ *  Unsubscribe from a doctor's calendar
+ *  Request Format:
+ *      Endpoint: /subscriptions/doctors/:id
+ */
+router.delete("/subscriptions/doctors/:id", authMiddleware, (req: Request, res: Response) => {
 	if (!req.isAuth || !req.user) {
         res.status(401).send("Unauthorized");
         return;
     }
 
-    if(!req.body.doctorId){
+    if(!req.params.id){
 		res.status(400).send("Doctor Id is not provided");
 		return;
     }
@@ -57,7 +97,7 @@ router.delete("/subscriptions/doctors", authMiddleware, (req: Request, res: Resp
         "subscriptions/unsub",
         {
             userId: req.user.toString(),
-            doctorId: req.body.doctorId.toString(),
+            doctorId: req.params.id.toString(),
         },
         {
             onResponse(mres: MqttResponse) {

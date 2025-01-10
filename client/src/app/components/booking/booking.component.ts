@@ -62,9 +62,6 @@ export class BookingComponent {
               next: () => {
                 this.cancelEvent.emit();
               },
-              error: (error) => {
-                console.error('Error fetching slots: ', error);
-              },
             });
         }
       });

@@ -41,7 +41,7 @@ const mqttOptions: IClientOptions = {
 
 const mqttClient = mqtt.connect(
   "tls://0fc2e0e6e10649f790f059e77c606dfe.s1.eu.hivemq.cloud:8883",
-  mqttOptions,
+  mqttOptions
 );
 
 const serviceId: string = process.env.TEST_TOPIC ? `test` : uniqid();
@@ -86,10 +86,10 @@ mqttClient.on("connect", async () => {
     console.log(`Subscribed to slots/#`);
   });
 
-	mqttClient.subscribe(serviceId + "/subscriptions/#", (err) => {
-		if (err) return console.error("Failed to subscribe to request topic");
-		console.log(`Subscribed to subscriptions/#`);
-	});
+  mqttClient.subscribe(serviceId + "/subscriptions/#", (err) => {
+    if (err) return console.error("Failed to subscribe to request topic");
+    console.log(`Subscribed to subscriptions/#`);
+  });
 
   // Heartbeat
   setInterval(() => {
@@ -130,7 +130,7 @@ mqttClient.on("message", async (topic, message) => {
   const params = /^\w+\/(\w+)\/(\w+)$/g.exec(topic);
   if (params?.length != 3) {
     console.error(
-      "Invalid topic. Expected format: <instanceId>/<endpoint>/<action>",
+      "Invalid topic. Expected format: <instanceId>/<endpoint>/<action>"
     );
     return;
   }
@@ -197,21 +197,24 @@ mqttClient.on("message", async (topic, message) => {
       break;
     }
 
-	case "subscriptions": {
-		if (!action || !data.userId || !data.doctorId) {
-			console.error("Invalid query:");
-			console.log(payload);
-			break;
-		}
-		switch(action) {
-			case "sub":
-				subscribeToDoctorCalendar(payload);
-				break;
-			case "unsub":
-				unsubscribeFromDoctorCalendar(payload);
-				break;
-		}
-	}
+    case "subscriptions": {
+      if (!action || !data.userId || !data.doctorId) {
+        console.error("Invalid query:");
+        console.log(payload);
+        break;
+      }
+      switch (action) {
+        case "sub":
+          subscribeToDoctorCalendar(payload);
+          break;
+        case "unsub":
+          unsubscribeFromDoctorCalendar(payload);
+          break;
+        case "isSub":
+          getSubscriptionStatus(payload);
+          break;
+      }
+    }
   }
 });
 
@@ -230,7 +233,7 @@ async function handleAppointmentsRequest(payload: any) {
       const doctorSlots = await slots
         .find(
           { doctorId: payload.data.doctorId },
-          { projection: { _id: 0, doctorId: 0 } },
+          { projection: { _id: 0, doctorId: 0 } }
         )
         .toArray();
 
@@ -291,7 +294,7 @@ async function handleAppointmentsRequest(payload: any) {
       slot.bookedBy = payload.data.userId;
       await slots.updateOne(
         { _id: slot._id },
-        { $set: { isBooked: true, bookedBy: payload.data.userId } },
+        { $set: { isBooked: true, bookedBy: payload.data.userId } }
       );
 
       publishResponse(payload.reqId, { message: "Slot successfully booked" });
@@ -299,10 +302,10 @@ async function handleAppointmentsRequest(payload: any) {
       // send live update to open calendars
       mqttClient.publish(
         `appointments/${payload.data.doctorId}`,
-        JSON.stringify(slot),
+        JSON.stringify(slot)
       );
 
-	  // Notify the doctor that a booking has been confirmed
+      // Notify the doctor that a booking has been confirmed
       mqttClient.publish(
         "notifications/doctor",
         JSON.stringify({
@@ -316,7 +319,7 @@ async function handleAppointmentsRequest(payload: any) {
               html: `<p>A booking has been confirmed for ${payload.data.startTime}</p>`,
             },
           },
-        }),
+        })
       );
       console.log(`Slot successfully booked: ${payload.data.startTime}`);
       break;
@@ -365,14 +368,14 @@ async function handleAppointmentsRequest(payload: any) {
 
       await slots.updateOne(
         { _id: slot._id },
-        { $set: { isBooked: false, bookedBy: null } },
+        { $set: { isBooked: false, bookedBy: null } }
       );
       publishResponse(payload.reqId, {
         message: "Booking successfully cancelled",
       });
       mqttClient.publish(
         `appointments/${payload.data.doctorId}`,
-        JSON.stringify(slot),
+        JSON.stringify(slot)
       );
 
       // Notify the doctor that a booking has been cancelled
@@ -389,20 +392,20 @@ async function handleAppointmentsRequest(payload: any) {
               html: `<p>A booking has been cancelled by patient for ${payload.data.startTime}</p>`,
             },
           },
-        }),
+        })
       );
 
       console.log(`Booking successfully cancelled: ${payload.data.startTime}`);
       break;
 
-	case "cancelByDoc": // cancel a slot by doctor
-		if(!payload.data.startTime || !payload.data.doctorId) {
-			console.error("Invalid query:");
-			console.log(payload);
-			break;
-		}
-		cancelAppointmentByDoctor(payload);
-		break;
+    case "cancelByDoc": // cancel a slot by doctor
+      if (!payload.data.startTime || !payload.data.doctorId) {
+        console.error("Invalid query:");
+        console.log(payload);
+        break;
+      }
+      cancelAppointmentByDoctor(payload);
+      break;
 
     case "getDocDate": // get all booked slots for a doctor on a specific day
       if (!payload.data.doctorId) {
@@ -457,63 +460,65 @@ async function handleAppointmentsRequest(payload: any) {
 }
 
 async function cancelAppointmentByDoctor(payload: any) {
-	payload.data.startTime = new Date(payload.data.startTime);
-	let slot = await slots.findOne({
-		doctorId: payload.data.doctorId,
-		startTime: payload.data.startTime,
-	});
-	if (!slot) {
-		console.error("Slot does not exist");
-		publishResponse(payload.reqId, {
-			error: "Error: Slot does not exist",
-		});
-		return;
-	}
-	if (!slot.isBooked) {
-		console.error("Slot not booked");
-		console.log(payload);
-		console.log(slot);
-		publishResponse(payload.reqId, {
-			message: "Error: Cannot cancel a non-booked slot",
-		});
-		return;
-	}
+  payload.data.startTime = new Date(payload.data.startTime);
+  let slot = await slots.findOne({
+    doctorId: payload.data.doctorId,
+    startTime: payload.data.startTime,
+  });
+  if (!slot) {
+    console.error("Slot does not exist");
+    publishResponse(payload.reqId, {
+      error: "Error: Slot does not exist",
+    });
+    return;
+  }
+  if (!slot.isBooked) {
+    console.error("Slot not booked");
+    console.log(payload);
+    console.log(slot);
+    publishResponse(payload.reqId, {
+      message: "Error: Cannot cancel a non-booked slot",
+    });
+    return;
+  }
 
-	const userId = slot.bookedBy;
+  const userId = slot.bookedBy;
 
-	slot.isBooked = false;
-	slot.bookedBy = null;
+  slot.isBooked = false;
+  slot.bookedBy = null;
 
-	await slots.updateOne(
-		{ _id: slot._id },
-		{ $set: { isBooked: false, bookedBy: null } },
-	);
-	publishResponse(payload.reqId, {
-		message: "Booking successfully cancelled",
-	});
-	mqttClient.publish(
-		`appointments/${payload.data.doctorId}`,
-		JSON.stringify(slot),
-	);
+  await slots.updateOne(
+    { _id: slot._id },
+    { $set: { isBooked: false, bookedBy: null } }
+  );
+  publishResponse(payload.reqId, {
+    message: "Booking successfully cancelled",
+  });
+  mqttClient.publish(
+    `appointments/${payload.data.doctorId}`,
+    JSON.stringify(slot)
+  );
 
-	// Notify the user that a booking has been cancelled
-	mqttClient.publish(
-		"notifications/user",
-		JSON.stringify({
-			timestamp: new Date(),
-			reqId: uniqid(),
-			data: {
-				userId: userId,
-				emailMessage: {
-					subject: "Booking Cancelled by Doctor",
-					text: `Your booking has been cancelled by doctor for ${payload.data.startTime}\nIf you have any questions, please contact the clinic.`,
-					html: `<p>Your booking has been cancelled by doctor for ${payload.data.startTime}</p><p>If you have any questions, please contact the clinic.</p>`,
-				},
-			},
-		}),
-	);
+  // Notify the user that a booking has been cancelled
+  mqttClient.publish(
+    "notifications/user",
+    JSON.stringify({
+      timestamp: new Date(),
+      reqId: uniqid(),
+      data: {
+        userId: userId,
+        emailMessage: {
+          subject: "Booking Cancelled by Doctor",
+          text: `Your booking has been cancelled by doctor for ${payload.data.startTime}\nIf you have any questions, please contact the clinic.`,
+          html: `<p>Your booking has been cancelled by doctor for ${payload.data.startTime}</p><p>If you have any questions, please contact the clinic.</p>`,
+        },
+      },
+    })
+  );
 
-	console.log(`Booking successfully cancelled by doctor: ${payload.data.startTime}`);
+  console.log(
+    `Booking successfully cancelled by doctor: ${payload.data.startTime}`
+  );
 }
 
 async function getAllDoctors(payload: any) {
@@ -556,10 +561,10 @@ async function handleSlotRequest(payload: any) {
   const startDate = new Date(Number(payload.data.body.startDate));
   const doctorId = new ObjectId(payload.data.doctorId);
 
-  const doctor = await doctors.findOne({_id: doctorId});
-  if(!doctor){
-	publishResponse(payload.reqId, { message: "Doctor not found" });
-	return;
+  const doctor = await doctors.findOne({ _id: doctorId });
+  if (!doctor) {
+    publishResponse(payload.reqId, { message: "Doctor not found" });
+    return;
   }
 
   // Check if the start time is before the current timme
@@ -651,34 +656,39 @@ async function handleSlotRequest(payload: any) {
   }
 }
 
-async function createSlot(payload: any, doctorId: ObjectId, startDate: Date, endDate: Date) {
-	const slot = {
-		doctorId: doctorId,
-		startTime: startDate,
-		endTime: endDate,
-		bookedBy: null,
-		test: true,
-	};
-	// Notify the user that a new slot has been created
-	mqttClient.publish(
-		"notifications/subscription/slotCreated",
-		JSON.stringify({
-			timestamp: new Date(),
-			reqId: uniqid(),
-			data: {
-				doctorId: doctorId,
-				startTime: startDate,
-				endTime: endDate,
-				emailMessage: {
-					subject: "Booking Cancelled by Doctor",
-					text: `Your booking has been cancelled by doctor for ${payload.data.startTime}\nIf you have any questions, please contact the clinic.`,
-					html: `<p>Your booking has been cancelled by doctor for ${payload.data.startTime}</p><p>If you have any questions, please contact the clinic.</p>`,
-				},
-			},
-		}),
-	);
-	await slots.insertOne(slot);
-	publishResponse(payload.reqId, { message: "Slot created" });
+async function createSlot(
+  payload: any,
+  doctorId: ObjectId,
+  startDate: Date,
+  endDate: Date
+) {
+  const slot = {
+    doctorId: doctorId,
+    startTime: startDate,
+    endTime: endDate,
+    bookedBy: null,
+    test: true,
+  };
+  // Notify the user that a new slot has been created
+  mqttClient.publish(
+    "notifications/subscription/slotCreated",
+    JSON.stringify({
+      timestamp: new Date(),
+      reqId: uniqid(),
+      data: {
+        doctorId: doctorId,
+        startTime: startDate,
+        endTime: endDate,
+        emailMessage: {
+          subject: "Booking Cancelled by Doctor",
+          text: `Your booking has been cancelled by doctor for ${payload.data.startTime}\nIf you have any questions, please contact the clinic.`,
+          html: `<p>Your booking has been cancelled by doctor for ${payload.data.startTime}</p><p>If you have any questions, please contact the clinic.</p>`,
+        },
+      },
+    })
+  );
+  await slots.insertOne(slot);
+  publishResponse(payload.reqId, { message: "Slot created" });
 }
 
 async function deleteSlot(payload: any, doctorId: ObjectId, startDate: Date) {
@@ -701,7 +711,7 @@ async function editSlot(
   payload: any,
   doctorId: ObjectId,
   startDate: Date,
-  endDate: Date,
+  endDate: Date
 ) {
   if (!payload.data.body.oldStartDate) {
     publishResponse(payload.reqId, { message: "Invalid request" });
@@ -733,7 +743,7 @@ async function editSlot(
   slot.endTime = endDate;
   await slots.updateOne(
     { _id: slot._id },
-    { $set: { startTime: startDate, endTime: endDate } },
+    { $set: { startTime: startDate, endTime: endDate } }
   );
   publishResponse(payload.reqId, { message: "Slot edited" });
 }
@@ -845,10 +855,10 @@ async function getAppointmentsForDoctorPerPatient(payload: any) {
       doctorId: doctorId,
       bookedBy: { $in: patientIds },
     })
-	.sort({ startTime: 1 })
+    .sort({ startTime: 1 })
     .toArray();
 
-	console.log(patientAppointments);
+  console.log(patientAppointments);
 
   const appointmentsWithNames = patientAppointments.map((appointment) => {
     appointment.patientName = patientName;
@@ -900,89 +910,123 @@ async function getAppointmentsForUser(payload: any) {
   publishResponse(reqId, userAppointments);
 }
 
+async function getSubscriptionStatus(payload: any) {
+  const userId = new ObjectId(payload.data.userId);
+  const doctorId = new ObjectId(payload.data.doctorId);
 
-async function subscribeToDoctorCalendar(payload: any) {
-	const userId = new ObjectId(payload.data.userId);
-	const doctorId = new ObjectId(payload.data.doctorId);
+  const doctor = await doctors.findOne({ _id: doctorId });
+  if (!doctor) {
+    publishResponse(payload.reqId, { message: "Doctor not found" });
+    return;
+  }
 
-	const doctor = await doctors.findOne({ _id: doctorId });
-	if (!doctor) {
-		publishResponse(payload.reqId, { message: "Doctor not found" });
-		return;
-	}
-
-	const user = await users.findOne({ _id: userId });
-	if (!user) {
-		publishResponse(payload.reqId, { message: "User not found" });
-		return;
-	}
-
-	// Check if user is already subscribed to the calendar
-	if(doctor.subscribers?.some((subscriber: ObjectId) => subscriber.toString() === userId.toString())) {
-		publishResponse(payload.reqId, { message: "Already subscribed to this calendar" });
-		return;
-	}
-
-	// Add user to the list of subscribers
-	let newSubscribersList = doctor.subscribers || [];
-	newSubscribersList.push(userId);
-
-	try {
-		// Update the list of subscribers
-		await doctors.updateOne(
-			{_id: doctorId},
-			{ $set: { subscribers: newSubscribersList } }
-		)
-	} catch (err){
-		console.log(err);
-		publishResponse(payload.reqId, { message: "An error occurred while subscribing to a calendar" })
-		return;
-	}
-
-	const message = `Subscribed to ${doctor.name}'s calendar`;
-
-	publishResponse(payload.reqId, { message });
+  publishResponse(payload.reqId, {
+    subscribed: doctor.subscribers?.some(
+      (subscriber: ObjectId) => subscriber.toString() === userId.toString()
+    ),
+  });
 }
 
-async function unsubscribeFromDoctorCalendar(payload: any){
-	const userId = new ObjectId(payload.data.userId);
-	const doctorId = new ObjectId(payload.data.doctorId);
+async function subscribeToDoctorCalendar(payload: any) {
+  const userId = new ObjectId(payload.data.userId);
+  const doctorId = new ObjectId(payload.data.doctorId);
 
-	const doctor = await doctors.findOne({ _id: doctorId });
-	if (!doctor) {
-		publishResponse(payload.reqId, { message: "Doctor not found" });
-		return;
-	}
+  const doctor = await doctors.findOne({ _id: doctorId });
+  if (!doctor) {
+    publishResponse(payload.reqId, { message: "Doctor not found" });
+    return;
+  }
 
-	const user = await users.findOne({ _id: userId });
-	if (!user) {
-		publishResponse(payload.reqId, { message: "User not found" });
-		return;
-	}
+  const user = await users.findOne({ _id: userId });
+  if (!user) {
+    publishResponse(payload.reqId, { message: "User not found" });
+    return;
+  }
 
-	// Check if user is already unsubscribed from the calendar
-	if(!doctor.subscribers?.some((subscriber: ObjectId) => subscriber.toString() === userId.toString())) {
-		publishResponse(payload.reqId, { message: "Cannot unsubscribe from a calendar you are not subscribed to" });
-		return;
-	}
+  // Check if user is already subscribed to the calendar
+  if (
+    doctor.subscribers?.some(
+      (subscriber: ObjectId) => subscriber.toString() === userId.toString()
+    )
+  ) {
+    publishResponse(payload.reqId, {
+      message: "Already subscribed to this calendar",
+    });
+    return;
+  }
 
-	// Remove the user from the list of subscribers
-	let oldSubscribersList = doctor.subscribers || [];
-	const newSubscribersList = oldSubscribersList.filter((subscriber: ObjectId) => subscriber.toString() !== userId.toString());
+  // Add user to the list of subscribers
+  let newSubscribersList = doctor.subscribers || [];
+  newSubscribersList.push(userId);
 
-	try {
-		// Update the list of subscribers
-		await doctors.updateOne(
-			{_id: doctorId},
-			{ $set: { subscribers: newSubscribersList } }
-		)
-	} catch (err){
-		console.log(err);
-		publishResponse(payload.reqId, { message: "An error occurred while unsubscribing from a calendar" })
-		return;
-	}
+  try {
+    // Update the list of subscribers
+    await doctors.updateOne(
+      { _id: doctorId },
+      { $set: { subscribers: newSubscribersList } }
+    );
+  } catch (err) {
+    console.log(err);
+    publishResponse(payload.reqId, {
+      message: "An error occurred while subscribing to a calendar",
+    });
+    return;
+  }
 
-	const message = `Unsubscribed from ${doctor.name}'s calendar`;
+  const message = `Subscribed to ${doctor.name}'s calendar`;
 
-	publishResponse(payload.reqId, { message });
+  publishResponse(payload.reqId, { message });
+}
+
+async function unsubscribeFromDoctorCalendar(payload: any) {
+  const userId = new ObjectId(payload.data.userId);
+  const doctorId = new ObjectId(payload.data.doctorId);
+
+  const doctor = await doctors.findOne({ _id: doctorId });
+  if (!doctor) {
+    publishResponse(payload.reqId, { message: "Doctor not found" });
+    return;
+  }
+
+  const user = await users.findOne({ _id: userId });
+  if (!user) {
+    publishResponse(payload.reqId, { message: "User not found" });
+    return;
+  }
+
+  // Check if user is already unsubscribed from the calendar
+  if (
+    !doctor.subscribers?.some(
+      (subscriber: ObjectId) => subscriber.toString() === userId.toString()
+    )
+  ) {
+    publishResponse(payload.reqId, {
+      message: "Cannot unsubscribe from a calendar you are not subscribed to",
+    });
+    return;
+  }
+
+  // Remove the user from the list of subscribers
+  let oldSubscribersList = doctor.subscribers || [];
+  const newSubscribersList = oldSubscribersList.filter(
+    (subscriber: ObjectId) => subscriber.toString() !== userId.toString()
+  );
+
+  try {
+    // Update the list of subscribers
+    await doctors.updateOne(
+      { _id: doctorId },
+      { $set: { subscribers: newSubscribersList } }
+    );
+  } catch (err) {
+    console.log(err);
+    publishResponse(payload.reqId, {
+      message: "An error occurred while unsubscribing from a calendar",
+    });
+    return;
+  }
+
+  const message = `Unsubscribed from ${doctor.name}'s calendar`;
+
+  publishResponse(payload.reqId, { message });
 }

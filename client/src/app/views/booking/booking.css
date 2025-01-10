@@ -7,11 +7,18 @@
   position: relative;
 }
 
-.details {
-  color: var(--mat-sys-on-background);
+.detail-container {
+  display: flex;
+  flex-direction: row;
+  gap: 1rem;
   margin-bottom: 1rem;
   margin-left: 1rem;
   margin-right: 1rem;
+}
+
+.details {
+  color: var(--mat-sys-on-background);
+  flex-grow: 1;
 }
 
 h2 {

@@ -45,10 +45,8 @@ export class Home {
               }) as Doctor,
           );
       },
-      error: (error) => {
+      error: () => {
         this.doctors = null;
-
-        console.error('Error fetching doctors: ', error);
       },
     });
   }
@@ -78,10 +76,8 @@ export class Home {
               }) as Clinic,
           );
       },
-      error: (error) => {
+      error: () => {
         this.clinics = null;
-
-        console.error('Error fetching clinics: ', error);
       },
     });
   }
@@ -118,10 +114,8 @@ export class Home {
                   }) as Booking,
               );
           },
-          error: (error) => {
+          error: () => {
             this.bookings = null;
-
-            console.error('Error fetching bookings: ', error);
           },
         });
     }

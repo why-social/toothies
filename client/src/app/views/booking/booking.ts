@@ -6,6 +6,7 @@ import { BookingDialogComponent } from '../../components/booking/dialog/booking.
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { ActivatedRoute } from '@angular/router';
 import { MatIcon } from '@angular/material/icon';
+import { MatButtonModule } from '@angular/material/button';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { getToken } from '../authentication/guard';
 import { Socket } from 'ngx-socket-io';
@@ -14,7 +15,7 @@ import { Socket } from 'ngx-socket-io';
 @Component({
   templateUrl: './booking.html',
   styleUrl: './booking.css',
-  imports: [CalendarComponent, MatIcon, MatProgressBarModule],
+  imports: [CalendarComponent, MatIcon, MatProgressBarModule, MatButtonModule],
 })
 export class Booking {
   readonly dialog = inject(MatDialog);
@@ -25,6 +26,8 @@ export class Booking {
   protected slots: Array<CalendarSlot> = [];
   protected doctorName: string | null = null;
   protected clinicName: string | null = null;
+
+  protected subscribed!: boolean;
 
   private doctorId: string | null = null;
   private openedDialog: CalendarSlot | null = null;
@@ -56,6 +59,24 @@ export class Booking {
         });
       }
     });
+
+    this.http
+      .get<any>(
+        `http://localhost:3000/subscriptions/doctors/${this.doctorId}`,
+        {
+          headers: new HttpHeaders().set(
+            'Authorization',
+            `Bearer ${getToken()}`,
+          ),
+        },
+      )
+      .subscribe({
+        next: (data) => {
+          if (data) {
+            this.subscribed = data.subscribed;
+          }
+        },
+      });
   }
 
   private fetchSlots() {
@@ -80,9 +101,6 @@ export class Booking {
             endTime: new Date(it.endTime),
             bookedBy: it.bookedBy,
           }));
-        },
-        error: (error) => {
-          console.error('Error fetching slots: ', error);
         },
       });
   }
@@ -132,9 +150,6 @@ export class Booking {
                   next: () => {
                     slot.bookedBy = null;
                   },
-                  error: (error) => {
-                    console.error('Error fetching slots: ', error);
-                  },
                 });
             }
           } else {
@@ -156,12 +171,49 @@ export class Booking {
                 next: () => {
                   slot.bookedBy = getToken(true).userId;
                 },
-                error: (error) => {
-                  console.error('Error fetching slots: ', error);
-                },
               });
           }
         }
+      });
+  }
+
+  protected subscribe() {
+    this.http
+      .post<any>(
+        `http://localhost:3000/subscriptions/doctors/${this.doctorId}`,
+        null,
+        {
+          headers: new HttpHeaders().set(
+            'Authorization',
+            `Bearer ${getToken()}`,
+          ),
+        },
+      )
+      .subscribe({
+        next: () => {
+          this.subscribed = true;
+        },
+      });
+  }
+
+  protected unsubscribe() {
+    this.http
+      .delete<any>(
+        `http://localhost:3000/subscriptions/doctors/${this.doctorId}`,
+        {
+          headers: new HttpHeaders().set(
+            'Authorization',
+            `Bearer ${getToken()}`,
+          ),
+        },
+      )
+      .subscribe({
+        next: () => {
+          this.subscribed = false;
+        },
+        error: (error) => {
+          console.error('Error subscribing to doctor: ', error);
+        },
       });
   }
 }

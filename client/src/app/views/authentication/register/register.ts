@@ -114,9 +114,7 @@ export class Register {
 
             this.registering = false;
           },
-          error: (error) => {
-            console.error("Error registering user: ", error);
-
+          error: () => {
             this.registering = false;
           },
         });
