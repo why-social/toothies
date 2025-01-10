@@ -1,6 +1,7 @@
 import { Db, MongoClient, MongoClientOptions, ObjectId } from "mongodb";
 import dotenv from "dotenv";
 import { spawn } from "child_process";
+import { DatabaseError } from "./types/databaseError";
 
 dotenv.config();
 if (!process.env.ATLAS_CONN_STR) {
