@@ -309,7 +309,6 @@ const broker: ServiceBroker = new ServiceBroker(
       process.exit(0);
     },
     onConnected() {
-      // TODO: topics must include serviceId
       broker.subscribe("login", authenticateUser);
       broker.subscribe("register", createUser);
       broker.subscribe("doctorLogin", authenticateDoctor);

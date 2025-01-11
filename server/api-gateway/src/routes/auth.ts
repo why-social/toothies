@@ -32,14 +32,13 @@ router.post("/auth/login", (req: Request, res: Response) => {
       password: req.body.password,
     },
     {
-      onResponse(mres: MqttResponse) {
-        // todo: get status from response
-        res.status(200).send(mres.data);
+      onResponse(response: MqttResponse) {
+        res.status(response.status || 200).send(response.data);
       },
-      onServiceError(msg: string) {
-        res.status(500).send(msg);
+      onServiceError(message: string) {
+        res.status(500).send(message);
       },
-    },
+    }
   );
 });
 
@@ -57,14 +56,13 @@ router.post("/auth/doctorLogin", (req: Request, res: Response) => {
 			password: req.body.password,
 		},
 		{
-			onResponse(mres: MqttResponse) {
-				// todo: get status from response
-				res.status(200).send(mres.data);
-			},
-			onServiceError(msg: string) {
-				res.status(500).send(msg);
-			},
-		},
+      onResponse(response: MqttResponse) {
+        res.status(response.status || 200).send(response.data);
+      },
+      onServiceError(message: string) {
+        res.status(500).send(message);
+      },
+    }
 	);
 })
 
@@ -91,14 +89,13 @@ router.post("/auth/register", (req: Request, res: Response) => {
       passwordHash: req.body.passwordHash,
     },
     {
-      onResponse(mres: MqttResponse) {
-        // todo: get status from response
-        res.status(200).send(mres.data);
+      onResponse(response: MqttResponse) {
+        res.status(response.status || 200).send(response.data);
       },
-      onServiceError(msg: string) {
-        res.status(500).send(msg);
+      onServiceError(message: string) {
+        res.status(500).send(message);
       },
-    },
+    }
   );
 });
 

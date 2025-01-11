@@ -14,6 +14,10 @@ if (!process.env.ATLAS_CONN_STR) {
   throw new Error("ATLAS_CONN_STR is not defined");
 }
 
+if (!process.env.BROKER_ADDR) {
+  throw new Error("BROKER_ADDR is not defined");
+}
+
 const db = new DbManager(process.env.ATLAS_CONN_STR, ["slots", "doctors", "clinics", "users"]);
 db.init()
   .then(() => console.log("Connected to db"))
@@ -41,7 +45,7 @@ const mqttOptions: IClientOptions = {
 };
 
 const mqttClient = mqtt.connect(
-  "tls://0fc2e0e6e10649f790f059e77c606dfe.s1.eu.hivemq.cloud:8883",
+  process.env.BROKER_ADDR,
   mqttOptions
 );
 

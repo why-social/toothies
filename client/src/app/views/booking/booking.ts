@@ -223,10 +223,7 @@ export class Booking {
       .subscribe({
         next: () => {
           this.subscribed = false;
-        },
-        error: (error) => {
-          console.error('Error subscribing to doctor: ', error);
-        },
+        }
       });
   }
 }

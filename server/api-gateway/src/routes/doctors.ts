@@ -18,12 +18,11 @@ router.get("/doctors", (req: Request, res: Response) => {
     "doctors/get",
     {},
     {
-      onResponse(mres: MqttResponse) {
-        // todo: get status from response
-        res.status(200).send(mres.data);
+      onResponse(response: MqttResponse) {
+        res.status(response.status || 200).send(response.data);
       },
-      onServiceError(msg: string) {
-        res.status(500).send(msg);
+      onServiceError(message: string) {
+        res.status(500).send(message);
       },
     }
   );
@@ -50,12 +49,11 @@ router.get(
         "appointments/getDocDate",
         { doctorId: req.user, date: req.query.date },
         {
-          onResponse(mres: MqttResponse) {
-            // todo: get status from response
-            res.status(200).send(mres.data);
+          onResponse(response: MqttResponse) {
+            res.status(response.status || 200).send(response.data);
           },
-          onServiceError(msg: string) {
-            res.status(500).send(msg);
+          onServiceError(message: string) {
+            res.status(500).send(message);
           },
         }
       );
@@ -65,12 +63,11 @@ router.get(
         "appointments/getDocPatient",
         { doctorId: req.user, patientName: req.query.patientName },
         {
-          onResponse(mres: MqttResponse) {
-            // todo: get status from response
-            res.status(200).send(mres.data);
+          onResponse(response: MqttResponse) {
+            res.status(response.status || 200).send(response.data);
           },
-          onServiceError(msg: string) {
-            res.status(500).send(msg);
+          onServiceError(message: string) {
+            res.status(500).send(message);
           },
         }
       );
@@ -99,12 +96,11 @@ router.get(
       "appointments/getDocUpcoming",
       { doctorId: req.user },
       {
-        onResponse(mres: MqttResponse) {
-          // todo: get status from response
-          res.status(200).send(mres.data);
+        onResponse(response: MqttResponse) {
+          res.status(response.status || 200).send(response.data);
         },
-        onServiceError(msg: string) {
-          res.status(500).send(msg);
+        onServiceError(message: string) {
+          res.status(500).send(message);
         },
       }
     );
@@ -130,12 +126,11 @@ router.delete(
       "appointments/cancelByDoc",
       { doctorId: req.user, startTime: req.body.startTime },
       {
-        onResponse(mres: MqttResponse) {
-          // todo: get status from response
-          res.status(200).send(mres.data);
+        onResponse(response: MqttResponse) {
+          res.status(response.status || 200).send(response.data);
         },
-        onServiceError(msg: string) {
-          res.status(500).send(msg);
+        onServiceError(message: string) {
+          res.status(500).send(message);
         },
       }
     );
@@ -180,12 +175,11 @@ router.post("/doctors", authMiddleware, (req: Request, res: Response) => {
       passwordHash: req.body.passwordHash,
     },
     {
-      onResponse(mres: MqttResponse) {
-        // todo: get status from response
-        res.status(200).send(mres.data);
+      onResponse(response: MqttResponse) {
+        res.status(response.status || 200).send(response.data);
       },
-      onServiceError(msg: string) {
-        res.status(500).send(msg);
+      onServiceError(message: string) {
+        res.status(500).send(message);
       },
     }
   );
@@ -212,12 +206,11 @@ router.delete("/doctors/:id", authMiddleware, (req: Request, res: Response) => {
     "doctors/delete",
     { doctorId: req.params.id },
     {
-      onResponse(mres: MqttResponse) {
-        // todo: get status from response
-        res.status(200).send(mres.data);
+      onResponse(response: MqttResponse) {
+        res.status(response.status || 200).send(response.data);
       },
-      onServiceError(msg: string) {
-        res.status(500).send(msg);
+      onServiceError(message: string) {
+        res.status(500).send(message);
       },
     }
   );

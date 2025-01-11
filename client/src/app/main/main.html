@@ -10,6 +10,14 @@
   </button>
 </header>
 
+<div
+  class="unavailable-notification"
+  [style.display]="inWriteOnlyMode ? 'unset' : 'none'"
+>
+  <mat-icon>warning</mat-icon>The service is temporarly unavailable. You can
+  still see your appointments.
+</div>
+
 <main>
   <router-outlet />
 </main>

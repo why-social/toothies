@@ -1,9 +1,10 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, OnInit } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { Router } from '@angular/router';
 import { MatIcon } from '@angular/material/icon';
 import { AdminGuard, AuthGuard } from '../views/authentication/guard';
 import { MatButtonModule } from '@angular/material/button';
+import { HttpResponseInterceptor } from '../interceptors/HttpResponseInterceptor';
 
 @Component({
   selector: 'app-root',
@@ -11,8 +12,41 @@ import { MatButtonModule } from '@angular/material/button';
   styleUrl: './main.css',
   imports: [RouterOutlet, MatIcon, MatButtonModule],
 })
-export class Main {
+export class Main implements OnInit {
+  private static readonly LOCAL_STORAGE_WRITE_KEY =
+    'writeModeNotificationTimeout';
+
   protected router = inject(Router);
+
+  protected inWriteOnlyMode: boolean;
+
+  constructor() {
+    this.inWriteOnlyMode =
+      Number(localStorage.getItem(Main.LOCAL_STORAGE_WRITE_KEY)) - Date.now() >
+      0;
+  }
+
+  ngOnInit(): void {
+    HttpResponseInterceptor.addResponseListener((request, response) => {
+      console.log(request)
+      console.log(response)
+
+      if (request?.method != 'GET') {
+        if (response?.body?.type == 'WriteNotAllowed') {
+          this.inWriteOnlyMode = true;
+
+          localStorage.setItem(
+            Main.LOCAL_STORAGE_WRITE_KEY,
+            String(Date.now() + 10 * 60 * 1000), // 10 minutes
+          );
+        } else if (!response?.body?.type) {
+          this.inWriteOnlyMode = false;
+
+          localStorage.removeItem(Main.LOCAL_STORAGE_WRITE_KEY);
+        }
+      }
+    });
+  }
 
   logOut() {
     localStorage.removeItem('token');

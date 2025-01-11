@@ -1,11 +1,11 @@
 export interface MqttRequest {
-  timestamp: Number;
+  timestamp: number;
   reqId: string;
   data?: object;
 }
 
 export interface MqttResponse {
-  timestamp: Number;
-  status: Number;
+  timestamp: number;
+  status: number;
   data: object;
 }

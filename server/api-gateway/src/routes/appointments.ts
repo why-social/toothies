@@ -28,14 +28,13 @@ router.get("/appointments", authMiddleware, (req: Request, res: Response) => {
     "appointments/get",
     { doctorId: req.query.doctorId },
     {
-      onResponse(mres: MqttResponse) {
-        // todo: get status from response
-        res.status(200).send(mres.data);
+      onResponse(response: MqttResponse) {
+        res.status(response.status || 200).send(response.data);
       },
-      onServiceError(msg: string) {
-        res.status(500).send(msg);
+      onServiceError(message: string) {
+        res.status(500).send(message);
       },
-    },
+    }
   );
 });
 
@@ -58,16 +57,15 @@ router.get(
       "appointments/getUser",
       { userId: req.user },
       {
-        onResponse(mres: MqttResponse) {
-          // todo: get status from response
-          res.status(200).send(mres.data);
+        onResponse(response: MqttResponse) {
+          res.status(response.status || 200).send(response.data);
         },
-        onServiceError(msg: string) {
-          res.status(500).send(msg);
+        onServiceError(message: string) {
+          res.status(500).send(message);
         },
-      },
+      }
     );
-  },
+  }
 );
 
 /**
@@ -97,14 +95,13 @@ router.post("/appointments", authMiddleware, (req: Request, res: Response) => {
       startTime: req.body.startTime,
     },
     {
-      onResponse(mres: MqttResponse) {
-        // todo: get status from response
-        res.status(200).send(mres.data);
+      onResponse(response: MqttResponse) {
+        res.status(response.status || 200).send(response.data);
       },
-      onServiceError(msg: string) {
-        res.status(500).send(msg);
+      onServiceError(message: string) {
+        res.status(500).send(message);
       },
-    },
+    }
   );
 });
 
@@ -138,16 +135,15 @@ router.delete(
         startTime: req.body.startTime,
       },
       {
-        onResponse(mres: MqttResponse) {
-          // todo: get status from response
-          res.status(200).send(mres.data);
+        onResponse(response: MqttResponse) {
+          res.status(response.status || 200).send(response.data);
         },
-        onServiceError(msg: string) {
-          res.status(500).send(msg);
+        onServiceError(message: string) {
+          res.status(500).send(message);
         },
-      },
+      }
     );
-  },
+  }
 );
 
 export default router;
