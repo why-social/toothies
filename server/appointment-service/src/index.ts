@@ -198,7 +198,11 @@ mqttClient.on("message", async (topic, message) => {
 
             publishResponse(payload.reqId, res);
           } catch (e) {
-            publishResponse(payload.reqId, { message: e });
+            if (e instanceof DatabaseError) {
+              publishResponse(payload.reqId, JSON.parse(e.message));
+            } else {
+              publishResponse(payload.reqId, { message: e });
+            }
             console.error("Failed to process request", e);
           }
           break;
@@ -214,7 +218,11 @@ mqttClient.on("message", async (topic, message) => {
 
             publishResponse(payload.reqId, res);
           } catch (e) {
-            publishResponse(payload.reqId, { message: e });
+            if (e instanceof DatabaseError) {
+              publishResponse(payload.reqId, JSON.parse(e.message));
+            } else {
+              publishResponse(payload.reqId, { message: e });
+            }
             console.error("Failed to process request", e);
           }
           break;
@@ -254,7 +262,11 @@ mqttClient.on("message", async (topic, message) => {
 
             publishResponse(payload.reqId, res);
           } catch (e) {
-            publishResponse(payload.reqId, { message: e });
+            if (e instanceof DatabaseError) {
+              publishResponse(payload.reqId, JSON.parse(e.message));
+            } else {
+              publishResponse(payload.reqId, { message: e });
+            }
             console.error("Failed to process request", e);
           }
           break;
@@ -274,8 +286,11 @@ mqttClient.on("message", async (topic, message) => {
 
             publishResponse(payload.reqId, res);
           } catch (e) {
-
-            publishResponse(payload.reqId, { message: e });
+            if (e instanceof DatabaseError) {
+              publishResponse(payload.reqId, JSON.parse(e.message));
+            } else {
+              publishResponse(payload.reqId, { message: e });
+            }
             console.error("Failed to process request", e);
           }
           break;
@@ -761,7 +776,12 @@ async function handleSlotRequest(payload: any) {
       return;
     }
   } catch (e) {
-
+    if (e instanceof DatabaseError) {
+      publishResponse(payload.reqId, JSON.parse(e.message));
+    } else {
+      publishResponse(payload.reqId, { message: e });
+    }
+    console.error("Failed to process request", e);
   }
 
   // Check if the start time is before the current timme
@@ -1205,8 +1225,12 @@ async function getSubscriptionStatus(payload: any) {
       ),
     });
   } catch (e) {
-    console.error("Unable to process request", e);
-    publishResponse(payload.reqId, { message: e });
+    if (e instanceof DatabaseError) {
+      publishResponse(payload.reqId, JSON.parse(e.message));
+    } else {
+      publishResponse(payload.reqId, { message: e });
+    }
+    console.error("Failed to process request", e);
   }
 }
 
@@ -1258,12 +1282,13 @@ async function subscribeToDoctorCalendar(payload: any) {
 
     const message = `Subscribed to ${doctor.name}'s calendar`;
     publishResponse(payload.reqId, { message });
-  } catch (err) {
-    console.log(err);
-    publishResponse(payload.reqId, {
-      message: "An error occurred while subscribing to a calendar",
-    });
-    return;
+  } catch (e) {
+    if (e instanceof DatabaseError) {
+      publishResponse(payload.reqId, JSON.parse(e.message));
+    } else {
+      publishResponse(payload.reqId, { message: e });
+    }
+    console.error("Failed to process request", e);
   }
 }
 
@@ -1318,12 +1343,13 @@ async function unsubscribeFromDoctorCalendar(payload: any) {
 
     const message = `Unsubscribed from ${doctor.name}'s calendar`;
     publishResponse(payload.reqId, { message });
-  } catch (err) {
-    console.log(err);
-    publishResponse(payload.reqId, {
-      message: "An error occurred while unsubscribing from a calendar",
-    });
-    return;
+  } catch (e) {
+    if (e instanceof DatabaseError) {
+      publishResponse(payload.reqId, JSON.parse(e.message));
+    } else {
+      publishResponse(payload.reqId, { message: e });
+    }
+    console.error("Failed to process request", e);
   }
 
 }

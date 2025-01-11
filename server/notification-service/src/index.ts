@@ -160,7 +160,7 @@ const notifyUser = async (message: Buffer) => {
 
 const notifySubscribedUsers = async (message: Buffer) => {
 	let data, reqId, timestamp;
-	try{
+	try {
 		const payload = JSON.parse(message.toString());
 		data = payload.data;
 		reqId = payload.timestamp;
@@ -180,23 +180,24 @@ const notifySubscribedUsers = async (message: Buffer) => {
 		return;
 	}
 
-	if(!data.doctorId || !data.startTime || !data.endTime){
+	if (!data.doctorId || !data.startTime || !data.endTime) {
 		console.error(`Missing required fields in request: ${message}`);
 		return;
 	}
 
-	const doctorCursor = doctors.aggregate([
-		{ $match: { _id: new ObjectId(data.doctorId) } },
-		{
-			$lookup: {
-				from: "users",
-				localField: "subscribers",
-				foreignField: "_id",
-				as: "subscribers",
+	const doctorCursor: any = await db.withConnection(() => {
+		return db.collections.get("doctors").aggregate([
+			{ $match: { _id: new ObjectId(data.doctorId) } },
+			{
+				$lookup: {
+					from: "users",
+					localField: "subscribers",
+					foreignField: "_id",
+					as: "subscribers",
+				},
 			},
-		},
-	]);
-
+		]);
+	}, true);
 	const doctor = await doctorCursor.next();
 
 	if (!doctor) {
