@@ -4,19 +4,19 @@ import Docker from "dockerode";
 import os from "os";
 import dotenv from "dotenv";
 import { Service } from "./types/Service";
-import { MongoClient, ObjectId } from "mongodb";
+import { DbManager } from "@toothies-org/backup-manager";
+import { ObjectId } from "mongodb";
 
 dotenv.config();
 
 if (!process.env.ATLAS_CONN_STR) {
   throw new Error("ATLAS_CONN_STR is not defined");
 }
-const atlasClient = new MongoClient(process.env.ATLAS_CONN_STR);
-const db = atlasClient.db("primary");
-const slots = db.collection("slots");
-const doctors = db.collection("doctors");
-const clinics = db.collection("clinics");
-const users = db.collection("users");
+
+const db = new DbManager(process.env.ATLAS_CONN_STR, ["slots", "doctors", "clinics", "users"]);
+db.init()
+  .then(() => console.log("Connected to db"))
+  .catch(() => { throw new Error("Failed to connect to db") });
 
 let containerName: string;
 async function getContainerName(): Promise<string> {
@@ -145,58 +145,79 @@ mqttClient.on("message", async (topic, message) => {
     case "clinics": {
       switch (action) {
         case "get": {
-          let res;
+          let res: any;
           // TODO project only relevant fields
-          if (data.clinicId) {
-            res = await clinics
-              .aggregate([
-                { $match: { _id: new ObjectId(data.clinicId) } },
-                {
-                  $lookup: {
-                    from: "doctors",
-                    localField: "_id",
-                    foreignField: "clinic",
-                    as: "doctors",
+          try {
+            if (data.clinicId) {
+              res = await db.withConnection(() => {
+                return db.collections.get("clinics").aggregate([
+                  { $match: { _id: new ObjectId(data.clinicId) } },
+                  {
+                    $lookup: {
+                      from: "doctors",
+                      localField: "_id",
+                      foreignField: "clinic",
+                      as: "doctors",
+                    },
                   },
-                },
-              ])
-              .toArray();
-          } else {
-            res = await clinics.find().toArray();
+                ]).toArray();
+              }, true);
+            } else {
+              res = await db.withConnection(() => {
+                return db.collections.get("clinics").find().toArray();
+              }, true);
+            }
+            publishResponse(payload.reqId, res);
+          } catch (e) {
+            publishResponse(payload.reqId, { message: e });
+            console.error("Failed to process request", e);
           }
-
-          publishResponse(payload.reqId, res);
           break;
         }
 
         case "delete": {
-          const res = await clinics.deleteOne({
-            _id: new ObjectId(data.clinicId),
-          });
+          try {
+            const res: any = await db.withConnection(() => {
+              return db.collections.get("clinics").deleteOne(
+                { _id: new ObjectId(data.clinicId), }
+              );
+            }, false);
 
-          if (res.deletedCount > 0) {
-            await doctors.deleteMany({
-              clinic: new ObjectId(data.clinicId),
-            });
+            if (res.deletedCount > 0) {
+              await db.withConnection(() => {
+                return db.collections.get("doctors").deleteMany(
+                  { clinic: new ObjectId(data.clinicId), }
+                );
+              }, false);
+            }
+
+            publishResponse(payload.reqId, res);
+          } catch (e) {
+            publishResponse(payload.reqId, { message: e });
+            console.error("Failed to process request", e);
           }
-
-          publishResponse(payload.reqId, res);
           break;
         }
 
         case "post": {
-          const res = await clinics.insertOne({
-            name: data.name,
-            location: data.location,
-          });
+          try {
+            const res: any = await db.withConnection(() => {
+              return db.collections.get("clinics").insertOne(
+                { name: data.name, location: data.location, }
+              );
+            }, false);
 
-          publishResponse(payload.reqId, res);
+            publishResponse(payload.reqId, res);
+          } catch (e) {
+            publishResponse(payload.reqId, { message: e });
+            console.error("Failed to process request", e);
+          }
           break;
         }
       }
-
       break;
     }
+
     case "appointments": {
       if (!action) {
         console.error("Invalid query:");
@@ -219,25 +240,40 @@ mqttClient.on("message", async (topic, message) => {
         }
 
         case "delete": {
-          const res = await doctors.deleteOne({
-            _id: new ObjectId(data.doctorId),
-          });
+          try {
+            const res: any = await db.withConnection(() => {
+              return db.collections.get("doctors").deleteOne(
+                { _id: new ObjectId(data.doctorId), }
+              );
+            }, false);
 
-          publishResponse(payload.reqId, res);
-          return;
+            publishResponse(payload.reqId, res);
+          } catch (e) {
+            publishResponse(payload.reqId, { message: e });
+            console.error("Failed to process request", e);
+          }
+          break;
         }
 
         case "post": {
-          const res = await doctors.insertOne({
-            name: data.name,
-            type: data.type,
-            clinic: data.clinic,
-            email: data.email,
-            passwordHash: data.passwordHash,
-          });
+          try {
+            const res: any = await db.withConnection(() => {
+              return db.collections.get("doctors").insertOne({
+                name: data.name,
+                type: data.type,
+                clinic: data.clinic,
+                email: data.email,
+                passwordHash: data.passwordHash,
+              });
+            }, false);
 
-          publishResponse(payload.reqId, res);
-          return;
+            publishResponse(payload.reqId, res);
+          } catch (e) {
+
+            publishResponse(payload.reqId, { message: e });
+            console.error("Failed to process request", e);
+          }
+          break;
         }
       }
       break;
@@ -272,7 +308,7 @@ mqttClient.on("message", async (topic, message) => {
 // TODO: explicitly close connections
 
 async function handleAppointmentsRequest(payload: any) {
-  let slot;
+  let slot: any;
 
   switch (payload.action) {
     case "get":
@@ -281,35 +317,46 @@ async function handleAppointmentsRequest(payload: any) {
         console.log(payload);
         break;
       }
-      const doctorSlots = await slots
-        .find(
-          { doctorId: payload.data.doctorId },
-          { projection: { _id: 0, doctorId: 0 } }
-        )
-        .toArray();
 
-      const doctor = await doctors.findOne({ _id: payload.data.doctorId });
-      const clinic = await clinics.findOne({ _id: doctor?.clinic });
-      if (!doctor || !clinic) {
-        publishResponse(payload.reqId, {
-          message: "Could not fetch doctor data for slot",
-        });
-        break;
+      try {
+        const doctorSlots = await db.withConnection(async () => {
+          return db.collections.get("slots").find(
+            { doctorId: payload.data.doctorId },
+            { projection: { _id: 0, doctorId: 0 } },
+          ).toArray();
+        }, true)
+
+        const doctor = await db.withConnection(async () => {
+          return db.collections.get("doctors").findOne({ _id: payload.data.doctorId });
+        }, true);
+        const clinic = await db.withConnection(async () => {
+          return await db.collections.get("clinics").findOne({ _id: doctor?.clinic });
+        }, true);
+        if (!doctor || !clinic) {
+          publishResponse(payload.reqId, {
+            message: "Could not fetch doctor data for slot",
+          });
+          break;
+        }
+
+        const res = {
+          doctor: {
+            _id: doctor._id,
+            name: doctor.name,
+            clinic: {
+              _id: clinic._id,
+              name: clinic.name,
+            },
+          },
+          slots: doctorSlots,
+        };
+
+        publishResponse(payload.reqId, res);
+      } catch (e) {
+        console.error("Unable to process request", e);
+        publishResponse(payload.reqId, { message: e });
       }
 
-      const res = {
-        doctor: {
-          _id: doctor._id,
-          name: doctor.name,
-          clinic: {
-            _id: clinic._id,
-            name: clinic.name,
-          },
-        },
-        slots: doctorSlots,
-      };
-
-      publishResponse(payload.reqId, res);
       break;
 
     case "book": // book a slot
@@ -320,78 +367,86 @@ async function handleAppointmentsRequest(payload: any) {
       }
 
       payload.data.startTime = new Date(payload.data.startTime);
-      slot = await slots.findOne({
-        doctorId: payload.data.doctorId,
-        startTime: payload.data.startTime,
-      });
-      if (!slot) {
-        console.error("Slot does not exist");
-        publishResponse(payload.reqId, {
-          message: "Error: Slot does not exist",
-        });
-        return;
-      }
-      if (slot.isBooked) {
-        console.error("Slot already booked");
-        console.log(payload);
-        console.log(slot);
-        publishResponse(payload.reqId, {
-          message: "Error: Slot already booked",
-        });
-        return;
-      }
 
-      slot.isBooked = true;
-      slot.bookedBy = payload.data.userId;
-      await slots.updateOne(
-        { _id: slot._id },
-        { $set: { isBooked: true, bookedBy: payload.data.userId } }
-      );
+      try {
+        slot = await db.withConnection(() => {
+          return db.collections.get("slots").findOne({
+            doctorId: payload.data.doctorId,
+            startTime: payload.data.startTime,
+          });
+        }, true);
+        if (!slot) {
+          console.error("Slot does not exist");
+          publishResponse(payload.reqId, {
+            message: "Error: Slot does not exist",
+          });
+          return;
+        }
+        if (slot.isBooked) {
+          console.error("Slot already booked");
+          console.log(payload);
+          console.log(slot);
+          publishResponse(payload.reqId, {
+            message: "Error: Slot already booked",
+          });
+          return;
+        }
 
-      publishResponse(payload.reqId, { message: "Slot successfully booked" });
+        slot.isBooked = true;
+        slot.bookedBy = payload.data.userId;
+        await db.withConnection(() => {
+          return db.collections.get("slots").updateOne(
+            { _id: slot._id },
+            { $set: { isBooked: true, bookedBy: payload.data.userId } },
+          );
+        }, false);
 
-      // send live update to open calendars
-      mqttClient.publish(
-        `appointments/${payload.data.doctorId}`,
-        JSON.stringify(slot)
-      );
-
-      // Notify the doctor that a booking has been confirmed
-      mqttClient.publish(
-        "notifications/doctor",
-        JSON.stringify({
-          timestamp: new Date(),
-          reqId: uniqid(),
-          data: {
-            userId: payload.data.doctorId,
-            emailMessage: {
-              subject: "Booking Confirmed",
-              text: `A booking has been confirmed for ${payload.data.startTime}`,
-              html: `<p>A booking has been confirmed for ${payload.data.startTime}</p>`,
+        // Notify the doctor that a booking has been confirmed
+        mqttClient.publish(
+          "notifications/doctor",
+          JSON.stringify({
+            timestamp: new Date(),
+            reqId: uniqid(),
+            data: {
+              userId: payload.data.doctorId,
+              emailMessage: {
+                subject: "Booking Confirmed",
+                text: `A booking has been confirmed for ${payload.data.startTime}`,
+                html: `<p>A booking has been confirmed for ${payload.data.startTime}</p>`,
+              },
             },
-          },
-        })
-      );
+          })
+        );
 
-	// Notify the user that a booking has been confirmed
-	mqttClient.publish(
-		"notifications/user",
-		JSON.stringify({
-			timestamp: new Date(),
-			reqId: uniqid(),
-			data: {
-				userId: payload.data.userId,
-				emailMessage: {
-					subject: "Booking Confirmed",
-					text: `Your booking has been confirmed for ${payload.data.startTime}\nIf you have any questions, please contact the clinic.`,
-					html: `<p>Your booking has been confirmed for ${payload.data.startTime}</p><p>If you have any questions, please contact the clinic.</p>`,
-				},
-			},
-		})
-	);
+        // Notify the user that a booking has been confirmed
+        mqttClient.publish(
+          "notifications/user",
+          JSON.stringify({
+            timestamp: new Date(),
+            reqId: uniqid(),
+            data: {
+              userId: payload.data.userId,
+              emailMessage: {
+                subject: "Booking Confirmed",
+                text: `Your booking has been confirmed for ${payload.data.startTime}\nIf you have any questions, please contact the clinic.`,
+                html: `<p>Your booking has been confirmed for ${payload.data.startTime}</p><p>If you have any questions, please contact the clinic.</p>`,
+              },
+            },
+          })
+        );
 
+        // send live update to open calendars
+        mqttClient.publish(
+          `appointments/${payload.data.doctorId}`,
+          JSON.stringify(slot),
+        );
 
-      console.log(`Slot successfully booked: ${payload.data.startTime}`);
+        console.log(`Slot successfully booked: ${payload.data.startTime}`);
+        publishResponse(payload.reqId, { message: "Slot successfully booked" });
+      } catch (e) {
+        console.error("Unable to process request", e);
+        publishResponse(payload.reqId, { message: e });
+      }
       break;
 
     case "cancel": // cancel a slot
@@ -402,87 +457,99 @@ async function handleAppointmentsRequest(payload: any) {
       }
 
       payload.data.startTime = new Date(payload.data.startTime);
-      slot = await slots.findOne({
-        doctorId: payload.data.doctorId,
-        startTime: payload.data.startTime,
-      });
-      if (!slot) {
-        console.error("Slot does not exist");
-        publishResponse(payload.reqId, {
-          message: "Error: Slot does not exist",
-        });
-        return;
-      }
-      if (!slot.isBooked) {
-        console.error("Slot not booked");
-        console.log(payload);
-        console.log(slot);
-        publishResponse(payload.reqId, {
-          message: "Error: Cannot cancel a non-booked slot",
-        });
-        return;
-      } else if (!slot.bookedBy.equals(payload.data.userId)) {
-        console.error("Slot booked by someone else");
-        console.log(payload);
-        console.log(slot);
-        console.log(slot.bookedBy);
-        console.log(payload.data.userId);
-        publishResponse(payload.reqId, {
-          message: "Error: Cannot cancel someone else's slot",
-        });
-        return;
-      }
+      try {
+        slot = await db.withConnection(() => {
+          return db.collections.get("slots").findOne({
+            doctorId: payload.data.doctorId,
+            startTime: payload.data.startTime,
+          });
+        }, true);
 
-      slot.isBooked = false;
-      slot.bookedBy = null;
+        if (!slot) {
+          console.error("Slot does not exist");
+          publishResponse(payload.reqId, {
+            message: "Error: Slot does not exist",
+          });
+          return;
+        }
+        if (!slot.isBooked) {
+          console.error("Slot not booked");
+          console.log(payload);
+          console.log(slot);
+          publishResponse(payload.reqId, {
+            message: "Error: Cannot cancel a non-booked slot",
+          });
+          return;
+        } else if (!slot.bookedBy.equals(payload.data.userId)) {
+          console.error("Slot booked by someone else");
+          console.log(payload);
+          console.log(slot);
+          console.log(slot.bookedBy);
+          console.log(payload.data.userId);
+          publishResponse(payload.reqId, {
+            message: "Error: Cannot cancel someone else's slot",
+          });
+          return;
+        }
 
-      await slots.updateOne(
-        { _id: slot._id },
-        { $set: { isBooked: false, bookedBy: null } }
-      );
-      publishResponse(payload.reqId, {
-        message: "Booking successfully cancelled",
-      });
-      mqttClient.publish(
-        `appointments/${payload.data.doctorId}`,
-        JSON.stringify(slot)
-      );
+        slot.isBooked = false;
+        slot.bookedBy = null;
 
-      // Notify the doctor that a booking has been cancelled
-      mqttClient.publish(
-        "notifications/doctor",
-        JSON.stringify({
-          timestamp: new Date(),
-          reqId: uniqid(),
-          data: {
-            userId: payload.data.doctorId,
-            emailMessage: {
-              subject: "Booking Cancelled by Patient",
-              text: `A booking has been cancelled by patient for ${payload.data.startTime}`,
-              html: `<p>A booking has been cancelled by patient for ${payload.data.startTime}</p>`,
+        await db.withConnection(() => {
+          return db.collections.get("slots").updateOne(
+            { _id: slot._id },
+            { $set: { isBooked: false, bookedBy: null } },
+          );
+        }, false);
+
+        publishResponse(payload.reqId, {
+          message: "Booking successfully cancelled",
+        });
+        mqttClient.publish(
+          `appointments/${payload.data.doctorId}`,
+          JSON.stringify(slot),
+        );
+
+        // Notify the doctor that a booking has been cancelled
+        mqttClient.publish(
+          "notifications/doctor",
+          JSON.stringify({
+            timestamp: new Date(),
+            reqId: uniqid(),
+            data: {
+              userId: payload.data.doctorId,
+              emailMessage: {
+                subject: "Booking Cancelled by Patient",
+                text: `A booking has been cancelled by patient for ${payload.data.startTime}`,
+                html: `<p>A booking has been cancelled by patient for ${payload.data.startTime}</p>`,
+              },
             },
-          },
-        })
-      );
+          })
+        );
 
-	  // Notify the user that a booking has been cancelled
-		mqttClient.publish(
-			"notifications/user",
-			JSON.stringify({
-				timestamp: new Date(),
-				reqId: uniqid(),
-				data: {
-					userId: payload.data.userId,
-					emailMessage: {
-						subject: "Booking Cancelled",
-						text: `Your booking has been cancelled for ${payload.data.startTime}\nIf you have any questions, please contact the clinic.`,
-						html: `<p>Your booking has been cancelled for ${payload.data.startTime}</p><p>If you have any questions, please contact the clinic.</p>`,
-					},
-				},
-			})
-		);
+        // Notify the user that a booking has been cancelled
+        mqttClient.publish(
+          "notifications/user",
+          JSON.stringify({
+            timestamp: new Date(),
+            reqId: uniqid(),
+            data: {
+              userId: payload.data.userId,
+              emailMessage: {
+                subject: "Booking Cancelled",
+                text: `Your booking has been cancelled for ${payload.data.startTime}\nIf you have any questions, please contact the clinic.`,
+                html: `<p>Your booking has been cancelled for ${payload.data.startTime}</p><p>If you have any questions, please contact the clinic.</p>`,
+              },
+            },
+          })
+        );
 
-      console.log(`Booking successfully cancelled: ${payload.data.startTime}`);
+
+        console.log(`Booking successfully cancelled: ${payload.data.startTime}`);
+      } catch (e) {
+        console.error("Unable to process request", e);
+        publishResponse(payload.reqId, { message: e });
+      }
       break;
 
     case "cancelByDoc": // cancel a slot by doctor
@@ -548,95 +615,107 @@ async function handleAppointmentsRequest(payload: any) {
 
 async function cancelAppointmentByDoctor(payload: any) {
   payload.data.startTime = new Date(payload.data.startTime);
-  let slot = await slots.findOne({
-    doctorId: payload.data.doctorId,
-    startTime: payload.data.startTime,
-  });
-  if (!slot) {
-    console.error("Slot does not exist");
+  try {
+    let slot: any = await db.withConnection(() => {
+      return db.collections.get("slots").findOne({
+        doctorId: payload.data.doctorId,
+        startTime: payload.data.startTime,
+      });
+    }, true);
+    if (!slot) {
+      console.error("Slot does not exist");
+      publishResponse(payload.reqId, {
+        error: "Error: Slot does not exist",
+      });
+      return;
+    }
+    if (!slot.isBooked) {
+      console.error("Slot not booked");
+      console.log(payload);
+      console.log(slot);
+      publishResponse(payload.reqId, {
+        message: "Error: Cannot cancel a non-booked slot",
+      });
+      return;
+    }
+
+    const userId = slot.bookedBy;
+
+    slot.isBooked = false;
+    slot.bookedBy = null;
+
+    await db.withConnection(() => {
+      return db.collections.get("slots").updateOne(
+        { _id: slot._id },
+        { $set: { isBooked: false, bookedBy: null } },
+      );
+    }, false);
     publishResponse(payload.reqId, {
-      error: "Error: Slot does not exist",
+      message: "Booking successfully cancelled",
     });
-    return;
-  }
-  if (!slot.isBooked) {
-    console.error("Slot not booked");
-    console.log(payload);
-    console.log(slot);
-    publishResponse(payload.reqId, {
-      message: "Error: Cannot cancel a non-booked slot",
-    });
-    return;
-  }
+    mqttClient.publish(
+      `appointments/${payload.data.doctorId}`,
+      JSON.stringify(slot),
+    );
 
-  const userId = slot.bookedBy;
-
-  slot.isBooked = false;
-  slot.bookedBy = null;
-
-  await slots.updateOne(
-    { _id: slot._id },
-    { $set: { isBooked: false, bookedBy: null } }
-  );
-  publishResponse(payload.reqId, {
-    message: "Booking successfully cancelled",
-  });
-  mqttClient.publish(
-    `appointments/${payload.data.doctorId}`,
-    JSON.stringify(slot)
-  );
-
-  // Notify the user that a booking has been cancelled
-  mqttClient.publish(
-    "notifications/user",
-    JSON.stringify({
-      timestamp: new Date(),
-      reqId: uniqid(),
-      data: {
-        userId: userId,
-        emailMessage: {
-          subject: "Booking Cancelled by Doctor",
-          text: `Your booking has been cancelled by doctor for ${payload.data.startTime}\nIf you have any questions, please contact the clinic.`,
-          html: `<p>Your booking has been cancelled by doctor for ${payload.data.startTime}</p><p>If you have any questions, please contact the clinic.</p>`,
+    // Notify the user that a booking has been cancelled
+    mqttClient.publish(
+      "notifications/user",
+      JSON.stringify({
+        timestamp: new Date(),
+        reqId: uniqid(),
+        data: {
+          userId: userId,
+          emailMessage: {
+            subject: "Booking Cancelled by Doctor",
+            text: `Your booking has been cancelled by doctor for ${payload.data.startTime}\nIf you have any questions, please contact the clinic.`,
+            html: `<p>Your booking has been cancelled by doctor for ${payload.data.startTime}</p><p>If you have any questions, please contact the clinic.</p>`,
+          },
         },
-      },
-    })
-  );
+      }),
+    );
 
-  console.log(
-    `Booking successfully cancelled by doctor: ${payload.data.startTime}`
-  );
+    console.log(`Booking successfully cancelled by doctor: ${payload.data.startTime}`);
+  } catch (e) {
+    console.error("Unable to process request", e);
+    publishResponse(payload.reqId, { message: e });
+  }
 }
 
 async function getAllDoctors(payload: any) {
-  let allDoctors = await doctors
-    .aggregate([
-      { $match: { _id: { $exists: true } } },
-      {
-        $lookup: {
-          from: "clinics",
-          localField: "clinic",
-          foreignField: "_id",
-          as: "clinic",
-        },
-      },
-      {
-        $unwind: "$clinic",
-      },
-      {
-        $project: {
-          _id: 1,
-          name: 1,
-          type: 1,
-          clinic: {
-            _id: "$clinic._id",
-            name: "$clinic.name",
+  try {
+    let allDoctors: any = await db.withConnection(() => {
+      return db.collections.get("doctors").aggregate([
+        { $match: { _id: { $exists: true } } },
+        {
+          $lookup: {
+            from: "clinics",
+            localField: "clinic",
+            foreignField: "_id",
+            as: "clinic",
           },
         },
-      },
-    ])
-    .toArray();
-  publishResponse(payload.reqId, allDoctors);
+        {
+          $unwind: "$clinic",
+        },
+        {
+          $project: {
+            _id: 1,
+            name: 1,
+            type: 1,
+            clinic: {
+              _id: "$clinic._id",
+              name: "$clinic.name",
+            },
+          },
+        },
+      ]).toArray();
+    }, true);
+    publishResponse(payload.reqId, allDoctors);
+  } catch (e) {
+    console.error("Unable to process request", e);
+    publishResponse(payload.reqId, { message: e });
+  }
 }
 
 async function handleSlotRequest(payload: any) {
@@ -648,10 +727,16 @@ async function handleSlotRequest(payload: any) {
   const startDate = new Date(Number(payload.data.body.startDate));
   const doctorId = new ObjectId(payload.data.doctorId);
 
-  const doctor = await doctors.findOne({ _id: doctorId });
-  if (!doctor) {
-    publishResponse(payload.reqId, { message: "Doctor not found" });
-    return;
+  try {
+    const doctor = await db.withConnection(() => {
+      return db.collections.get("doctors").findOne({ _id: doctorId });
+    }, true);
+    if (!doctor) {
+      publishResponse(payload.reqId, { message: "Doctor not found" });
+      return;
+    }
+  } catch (e) {
+
   }
 
   // Check if the start time is before the current timme
@@ -666,7 +751,7 @@ async function handleSlotRequest(payload: any) {
     return;
   }
 
-  let endDate;
+  let endDate: any;
 
   if (payload.data.body.endDate) {
     endDate = new Date(Number(payload.data.body.endDate));
@@ -689,36 +774,45 @@ async function handleSlotRequest(payload: any) {
       return;
     }
 
-    // Check if the slot already exists
-    const slotExists = await slots.findOne({
-      doctorId: doctorId,
-      startTime: startDate,
-      endTime: endDate,
-    });
-    if (slotExists) {
-      publishResponse(payload.reqId, { message: "Slot already exists" });
-      return;
-    }
+    try {
+      // Check if the slot already exists
+      const slotExists = await db.withConnection(() => {
+        return db.collections.get("slots").findOne({
+          doctorId: doctorId,
+          startTime: startDate,
+          endTime: endDate,
+        });
+      }, true);
+      if (slotExists) {
+        publishResponse(payload.reqId, { message: "Slot already exists" });
+        return;
+      }
 
-    // Check if the slot overlaps with another slot
-    const overlappingSlot = await slots.findOne({
-      doctorId: doctorId,
-      startTime: { $lt: endDate },
-      endTime: { $gt: startDate },
-    });
-    if (overlappingSlot) {
-      publishResponse(payload.reqId, {
-        message: "Slot overlaps with another slot",
-      });
-      return;
-    }
+      // Check if the slot overlaps with another slot
+      const overlappingSlot = await db.withConnection(() => {
+        return db.collections.get("slots").findOne({
+          doctorId: doctorId,
+          startTime: { $lt: endDate },
+          endTime: { $gt: startDate },
+        });
+      }, true);
+      if (overlappingSlot) {
+        publishResponse(payload.reqId, {
+          message: "Slot overlaps with another slot",
+        });
+        return;
+      }
 
-    // Check if start time is within doctor's working hours (8am - 8pm)
-    const startHour = startDate.getHours();
-    const endHour = endDate.getHours();
-    if (startHour < 8 || endHour > 20) {
-      publishResponse(payload.reqId, { message: "Slot outside working hours" });
-      return;
+      // Check if start time is within doctor's working hours (8am - 8pm)
+      const startHour = startDate.getHours();
+      const endHour = endDate.getHours();
+      if (startHour < 8 || endHour > 20) {
+        publishResponse(payload.reqId, { message: "Slot outside working hours" });
+        return;
+      }
+    } catch (e) {
+      console.error("Unable to process request", e);
+      publishResponse(payload.reqId, { message: e });
     }
   }
 
@@ -756,42 +850,58 @@ async function createSlot(
     bookedBy: null,
     test: true,
   };
-  // Notify the user that a new slot has been created
-  mqttClient.publish(
-    "notifications/subscription/slotCreated",
-    JSON.stringify({
-      timestamp: new Date(),
-      reqId: uniqid(),
-      data: {
-        doctorId: doctorId,
-        startTime: startDate,
-        endTime: endDate,
-        emailMessage: {
-          subject: "Booking Cancelled by Doctor",
-          text: `Your booking has been cancelled by doctor for ${payload.data.startTime}\nIf you have any questions, please contact the clinic.`,
-          html: `<p>Your booking has been cancelled by doctor for ${payload.data.startTime}</p><p>If you have any questions, please contact the clinic.</p>`,
+  try {
+    await db.withConnection(() => {
+      return db.collections.get("slots").insertOne(slot)
+    }, false);
+    publishResponse(payload.reqId, { message: "Slot created" });
+    // Notify the user that a new slot has been created
+    mqttClient.publish(
+      "notifications/subscription/slotCreated",
+      JSON.stringify({
+        timestamp: new Date(),
+        reqId: uniqid(),
+        data: {
+          doctorId: doctorId,
+          startTime: startDate,
+          endTime: endDate,
+          emailMessage: {
+            subject: "Booking Cancelled by Doctor",
+            text: `Your booking has been cancelled by doctor for ${payload.data.startTime}\nIf you have any questions, please contact the clinic.`,
+            html: `<p>Your booking has been cancelled by doctor for ${payload.data.startTime}</p><p>If you have any questions, please contact the clinic.</p>`,
+          },
         },
-      },
-    })
-  );
-  await slots.insertOne(slot);
-  publishResponse(payload.reqId, { message: "Slot created" });
+      })
+    );
+  } catch (e) {
+    console.error("Unable to process request", e);
+    publishResponse(payload.reqId, { message: e });
+  }
 }
 
 async function deleteSlot(payload: any, doctorId: ObjectId, startDate: Date) {
-  const slot = await slots.findOne({
-    doctorId: doctorId,
-    startTime: startDate,
-  });
+  try {
+    const slot: any = await db.withConnection(() => {
+      return db.collections.get("slots").findOne({
+        doctorId: doctorId,
+        startTime: startDate,
+      });
+    }, true);
 
-  // Check if the slot exists
-  if (!slot) {
-    publishResponse(payload.reqId, { message: "Slot not found" });
-    return;
+    // Check if the slot exists
+    if (!slot) {
+      publishResponse(payload.reqId, { message: "Slot not found" });
+      return;
+    }
+
+    await db.withConnection(() => {
+      return db.collections.get("slots").deleteOne({ _id: slot._id })
+    }, false);
+    publishResponse(payload.reqId, { message: "Slot deleted" });
+  } catch (e) {
+    console.error("Unable to process request", e);
+    publishResponse(payload.reqId, { message: e });
   }
-
-  await slots.deleteOne({ _id: slot._id });
-  publishResponse(payload.reqId, { message: "Slot deleted" });
 }
 
 async function editSlot(
@@ -807,32 +917,40 @@ async function editSlot(
 
   const oldStartDate = new Date(Number(payload.data.body.oldStartDate));
 
-  // Find the slot to edit
-  const slot = await slots.findOne({
-    doctorId: doctorId,
-    startTime: oldStartDate,
-  });
-  if (!slot) {
-    publishResponse(payload.reqId, { message: "Slot not found" });
-    return;
-  }
+  try {
+    // Find the slot to edit
+    const slot: any = await db.withConnection(() => {
+      return db.collections.get("slots").findOne({
+        doctorId: doctorId,
+        startTime: oldStartDate,
+      });
+    }, true);
+    if (!slot) {
+      publishResponse(payload.reqId, { message: "Slot not found" });
+      return;
+    }
 
-  // Check if the slot is booked
-  if (slot.isBooked || slot.bookedBy) {
-    publishResponse(payload.reqId, {
-      message: "Unable to update, slot is booked",
-    });
-    return;
-  }
+    // Check if the slot is booked
+    if (slot.isBooked || slot.bookedBy) {
+      publishResponse(payload.reqId, {
+        message: "Unable to update, slot is booked",
+      });
+      return;
+    }
 
-  // Edit the slot
-  slot.startTime = startDate;
-  slot.endTime = endDate;
-  await slots.updateOne(
-    { _id: slot._id },
-    { $set: { startTime: startDate, endTime: endDate } }
-  );
-  publishResponse(payload.reqId, { message: "Slot edited" });
+    // Edit the slot
+    slot.startTime = startDate;
+    slot.endTime = endDate;
+    await db.withConnection(() => {
+      return db.collections.get("slots").updateOne(
+        { _id: slot._id },
+        { $set: { startTime: startDate, endTime: endDate } })
+    }, false);
+    publishResponse(payload.reqId, { message: "Slot edited" });
+  } catch (e) {
+    console.error("Unable to process request", e);
+    publishResponse(payload.reqId, { message: e });
+  }
 }
 
 async function getAppointmentsForDoctorOnDate(payload: any) {
@@ -845,49 +963,53 @@ async function getAppointmentsForDoctorOnDate(payload: any) {
   // Set the end of the day (23:59:59)
   const endOfDay = new Date(date.setHours(23, 59, 59, 999));
 
-  const dateAppointments = await slots
-    .aggregate([
-      {
-        $match: {
-          doctorId: doctorId,
-          startTime: { $gte: startOfDay, $lt: endOfDay },
+  try {
+    const dateAppointments: any = await db.withConnection(() => {
+      return db.collections.get("slots").aggregate([
+        {
+          $match: {
+            doctorId: doctorId,
+            startTime: { $gte: startOfDay, $lt: endOfDay },
+          },
         },
-      },
-      {
-        $lookup: {
-          from: "users",
-          localField: "bookedBy",
-          foreignField: "_id",
-          as: "patientName",
+        {
+          $lookup: {
+            from: "users",
+            localField: "bookedBy",
+            foreignField: "_id",
+            as: "patientName",
+          },
         },
-      },
-      {
-        $unwind: "$patientName",
-      },
-      {
-        $project: {
-          startTime: 1,
-          endTime: 1,
-          doctorId: 1,
-          bookedBy: 1,
-          patientName: "$patientName.name",
+        {
+          $unwind: "$patientName",
         },
-      },
-      {
-        $sort: { startTime: 1 },
-      },
-    ])
-    .toArray();
-
-  publishResponse(payload.reqId, dateAppointments);
+        {
+          $project: {
+            startTime: 1,
+            endTime: 1,
+            doctorId: 1,
+            bookedBy: 1,
+            patientName: "$patientName.name",
+          },
+        },
+        {
+          $sort: { startTime: 1 },
+        },
+      ]).toArray();
+    }, true);
+    publishResponse(payload.reqId, dateAppointments);
+  } catch (e) {
+    console.error("Unable to process request", e);
+    publishResponse(payload.reqId, { message: e });
+  }
 }
 
 async function getAppointmentsForDoctorUpcoming(payload: any) {
   const doctorId = new ObjectId(payload.data.doctorId);
   const startDate = new Date();
 
-  const upcomingAppointments = await slots
-    .aggregate([
+  const upcomingAppointments: any = await db.withConnection(() => {
+    return db.collections.get("slots").aggregate([
       {
         $match: {
           doctorId: doctorId,
@@ -920,8 +1042,8 @@ async function getAppointmentsForDoctorUpcoming(payload: any) {
       {
         $limit: 200,
       },
-    ])
-    .toArray();
+    ]).toArray();
+  }, true);
 
   publishResponse(payload.reqId, upcomingAppointments);
 }
@@ -930,128 +1052,159 @@ async function getAppointmentsForDoctorPerPatient(payload: any) {
   const reqId = payload.reqId;
   const doctorId = new ObjectId(payload.data.doctorId);
   const patientName = payload.data.patientName;
-  const patients = await users.find({ name: patientName }).toArray();
-  if (patients === null || patients.length === 0) {
-    publishResponse(reqId, { error: "Patient not found" });
-    return;
+
+  try {
+    const patients: Array<any> = await db.withConnection(() => {
+      return db.collections.get("users").find({ name: patientName }).toArray();
+    }, true);
+    if (patients === null || patients.length === 0) {
+      publishResponse(reqId, { error: "Patient not found" });
+      return;
+    }
+    const patientIds = patients.map((patient: any) => patient._id);
+
+    const patientAppointments: Array<any> = await db.withConnection(() => {
+      return db.collections.get("slots").find({
+        doctorId: doctorId,
+        bookedBy: { $in: patientIds },
+      }).sort({ startTime: 1 })
+        .toArray();
+    }, true);
+
+    console.log(patientAppointments);
+
+    const appointmentsWithNames = patientAppointments.map((appointment: any) => {
+      appointment.patientName = patientName;
+      return appointment;
+    });
+
+    publishResponse(reqId, appointmentsWithNames);
+  } catch (e) {
+    console.error("Unable to process request", e);
+    publishResponse(payload.reqId, { message: e });
   }
-  const patientIds = patients.map((patient) => patient._id);
-
-  const patientAppointments = await slots
-    .find({
-      doctorId: doctorId,
-      bookedBy: { $in: patientIds },
-    })
-    .sort({ startTime: 1 })
-    .toArray();
-
-  console.log(patientAppointments);
-
-  const appointmentsWithNames = patientAppointments.map((appointment) => {
-    appointment.patientName = patientName;
-    return appointment;
-  });
-
-  publishResponse(reqId, appointmentsWithNames);
 }
 
 async function getAppointmentsForUser(payload: any) {
   const reqId = payload.reqId;
   const userId = new ObjectId(payload.data.userId);
-  const userAppointments = await slots
-    .aggregate([
-      {
-        $match: {
-          bookedBy: userId,
-          startTime: { $gte: new Date() },
-        },
-      },
-      {
-        $lookup: {
-          from: "doctors",
-          localField: "doctorId",
-          foreignField: "_id",
-          as: "doctor",
-        },
-      },
-      {
-        $unwind: "$doctor",
-      },
-      {
-        $project: {
-          startTime: 1,
-          endTime: 1,
-          bookedBy: 1,
-          doctor: {
-            _id: "$doctor._id",
-            name: "$doctor.name",
+
+  try {
+    const userAppointments: Array<any> = await db.withConnection(() => {
+      return db.collections.get("slots").aggregate([
+        {
+          $match: {
+            bookedBy: userId,
+            startTime: { $gte: new Date() },
           },
         },
-      },
-      {
-        $sort: { startTime: 1 },
-      },
-    ])
-    .toArray();
+        {
+          $lookup: {
+            from: "doctors",
+            localField: "doctorId",
+            foreignField: "_id",
+            as: "doctor",
+          },
+        },
+        {
+          $unwind: "$doctor",
+        },
+        {
+          $project: {
+            startTime: 1,
+            endTime: 1,
+            bookedBy: 1,
+            doctor: {
+              _id: "$doctor._id",
+              name: "$doctor.name",
+            },
+          },
+        },
+        {
+          $sort: { startTime: 1 },
+        },
+      ]).toArray();
+    }, true);
 
-  publishResponse(reqId, userAppointments);
+    publishResponse(reqId, userAppointments);
+  } catch (e) {
+    console.error("Unable to process request", e);
+    publishResponse(payload.reqId, { message: e });
+  }
 }
 
 async function getSubscriptionStatus(payload: any) {
-  const userId = new ObjectId(payload.data.userId);
-  const doctorId = new ObjectId(payload.data.doctorId);
+  try {
+    const userId = new ObjectId(payload.data.userId);
+    const doctorId = new ObjectId(payload.data.doctorId);
 
-  const doctor = await doctors.findOne({ _id: doctorId });
-  if (!doctor) {
-    publishResponse(payload.reqId, { message: "Doctor not found" });
-    return;
+    const doctor: any = await db.withConnection(() => {
+      return db.collections.get("doctors").findOne({ _id: doctorId });
+    }, true);
+    if (!doctor) {
+      publishResponse(payload.reqId, { message: "Doctor not found" });
+      return;
+    }
+
+    publishResponse(payload.reqId, {
+      subscribed: doctor.subscribers?.some(
+        (subscriber: ObjectId) => subscriber.toString() === userId.toString()
+      ),
+    });
+  } catch (e) {
+    console.error("Unable to process request", e);
+    publishResponse(payload.reqId, { message: e });
   }
-
-  publishResponse(payload.reqId, {
-    subscribed: doctor.subscribers?.some(
-      (subscriber: ObjectId) => subscriber.toString() === userId.toString()
-    ),
-  });
 }
 
 async function subscribeToDoctorCalendar(payload: any) {
-  const userId = new ObjectId(payload.data.userId);
-  const doctorId = new ObjectId(payload.data.doctorId);
-
-  const doctor = await doctors.findOne({ _id: doctorId });
-  if (!doctor) {
-    publishResponse(payload.reqId, { message: "Doctor not found" });
-    return;
-  }
-
-  const user = await users.findOne({ _id: userId });
-  if (!user) {
-    publishResponse(payload.reqId, { message: "User not found" });
-    return;
-  }
-
-  // Check if user is already subscribed to the calendar
-  if (
-    doctor.subscribers?.some(
-      (subscriber: ObjectId) => subscriber.toString() === userId.toString()
-    )
-  ) {
-    publishResponse(payload.reqId, {
-      message: "Already subscribed to this calendar",
-    });
-    return;
-  }
-
-  // Add user to the list of subscribers
-  let newSubscribersList = doctor.subscribers || [];
-  newSubscribersList.push(userId);
 
   try {
+    const userId = new ObjectId(payload.data.userId);
+    const doctorId = new ObjectId(payload.data.doctorId);
+
+    const doctor: any = await db.withConnection(() => {
+      return db.collections.get("doctors").findOne({ _id: doctorId });
+    }, true);
+    if (!doctor) {
+      publishResponse(payload.reqId, { message: "Doctor not found" });
+      return;
+    }
+
+    const user: any = await db.withConnection(() => {
+      return db.collections.get("users").findOne({ _id: userId });
+    }, true);
+    if (!user) {
+      publishResponse(payload.reqId, { message: "User not found" });
+      return;
+    }
+
+    // Check if user is already subscribed to the calendar
+    if (
+      doctor.subscribers?.some(
+        (subscriber: ObjectId) => subscriber.toString() === userId.toString()
+      )
+    ) {
+      publishResponse(payload.reqId, {
+        message: "Already subscribed to this calendar",
+      });
+      return;
+    }
+
+    // Add user to the list of subscribers
+    let newSubscribersList = doctor.subscribers || [];
+    newSubscribersList.push(userId);
+
     // Update the list of subscribers
-    await doctors.updateOne(
-      { _id: doctorId },
-      { $set: { subscribers: newSubscribersList } }
-    );
+    await db.withConnection(() => {
+      return db.collections.get("doctors").updateOne(
+        { _id: doctorId },
+        { $set: { subscribers: newSubscribersList } }
+      );
+    }, false);
+
+    const message = `Subscribed to ${doctor.name}'s calendar`;
+    publishResponse(payload.reqId, { message });
   } catch (err) {
     console.log(err);
     publishResponse(payload.reqId, {
@@ -1059,52 +1212,59 @@ async function subscribeToDoctorCalendar(payload: any) {
     });
     return;
   }
-
-  const message = `Subscribed to ${doctor.name}'s calendar`;
-
-  publishResponse(payload.reqId, { message });
 }
 
 async function unsubscribeFromDoctorCalendar(payload: any) {
-  const userId = new ObjectId(payload.data.userId);
-  const doctorId = new ObjectId(payload.data.doctorId);
-
-  const doctor = await doctors.findOne({ _id: doctorId });
-  if (!doctor) {
-    publishResponse(payload.reqId, { message: "Doctor not found" });
-    return;
-  }
-
-  const user = await users.findOne({ _id: userId });
-  if (!user) {
-    publishResponse(payload.reqId, { message: "User not found" });
-    return;
-  }
-
-  // Check if user is already unsubscribed from the calendar
-  if (
-    !doctor.subscribers?.some(
-      (subscriber: ObjectId) => subscriber.toString() === userId.toString()
-    )
-  ) {
-    publishResponse(payload.reqId, {
-      message: "Cannot unsubscribe from a calendar you are not subscribed to",
-    });
-    return;
-  }
-
-  // Remove the user from the list of subscribers
-  let oldSubscribersList = doctor.subscribers || [];
-  const newSubscribersList = oldSubscribersList.filter(
-    (subscriber: ObjectId) => subscriber.toString() !== userId.toString()
-  );
 
   try {
-    // Update the list of subscribers
-    await doctors.updateOne(
-      { _id: doctorId },
-      { $set: { subscribers: newSubscribersList } }
+    const userId = new ObjectId(payload.data.userId);
+    const doctorId = new ObjectId(payload.data.doctorId);
+
+    const doctor: any = await db.withConnection(() => {
+      return db.collections.get("doctors").findOne({ _id: doctorId });
+    }, true);
+    if (!doctor) {
+      publishResponse(payload.reqId, { message: "Doctor not found" });
+      return;
+    }
+
+    const user: any = await db.withConnection(() => {
+      return db.collections.get("users").findOne({ _id: userId });
+    }, true);
+    if (!user) {
+      publishResponse(payload.reqId, { message: "User not found" });
+      return;
+    }
+
+    // Check if user is already unsubscribed from the calendar
+    if (
+      !doctor.subscribers?.some(
+        (subscriber: ObjectId) => subscriber.toString() === userId.toString()
+      )
+    ) {
+      publishResponse(payload.reqId, {
+        message: "Cannot unsubscribe from a calendar you are not subscribed to",
+      });
+      return;
+    }
+
+    // Remove the user from the list of subscribers
+    let oldSubscribersList = doctor.subscribers || [];
+    const newSubscribersList = oldSubscribersList.filter(
+      (subscriber: ObjectId) => subscriber.toString() !== userId.toString()
     );
+    // Update the list of subscribers
+    await db.withConnection(() => {
+      return db.collections.get("doctors").updateOne(
+        { _id: doctorId },
+        {
+          $set: { subscribers: newSubscribersList }
+        }
+      );
+    }, false);
+
+    const message = `Unsubscribed from ${doctor.name}'s calendar`;
+    publishResponse(payload.reqId, { message });
   } catch (err) {
     console.log(err);
     publishResponse(payload.reqId, {
@@ -1113,7 +1273,4 @@ async function unsubscribeFromDoctorCalendar(payload: any) {
     return;
   }
 
-  const message = `Unsubscribed from ${doctor.name}'s calendar`;
-
-  publishResponse(payload.reqId, { message });
 }
