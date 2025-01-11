@@ -28,22 +28,23 @@ export class Main implements OnInit {
 
   ngOnInit(): void {
     HttpResponseInterceptor.addResponseListener((request, response) => {
-      console.log(request)
-      console.log(response)
+      if (response?.body?.type == 'WriteNotAllowed') {
+        this.inWriteOnlyMode = true;
 
-      if (request?.method != 'GET') {
-        if (response?.body?.type == 'WriteNotAllowed') {
-          this.inWriteOnlyMode = true;
+        localStorage.setItem(
+          Main.LOCAL_STORAGE_WRITE_KEY,
+          String(Date.now() + 10 * 60 * 1000), // 10 minutes
+        );
+      } else if (
+        request.method != 'GET' &&
+        !response?.body?.type &&
+        response?.body?.status != 500 &&
+        response.status >= 200 &&
+        response.status < 400
+      ) {
+        this.inWriteOnlyMode = false;
 
-          localStorage.setItem(
-            Main.LOCAL_STORAGE_WRITE_KEY,
-            String(Date.now() + 10 * 60 * 1000), // 10 minutes
-          );
-        } else if (!response?.body?.type) {
-          this.inWriteOnlyMode = false;
-
-          localStorage.removeItem(Main.LOCAL_STORAGE_WRITE_KEY);
-        }
+        localStorage.removeItem(Main.LOCAL_STORAGE_WRITE_KEY);
       }
     });
   }

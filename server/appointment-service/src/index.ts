@@ -18,10 +18,17 @@ if (!process.env.BROKER_ADDR) {
   throw new Error("BROKER_ADDR is not defined");
 }
 
-const db = new DbManager(process.env.ATLAS_CONN_STR, ["slots", "doctors", "clinics", "users"]);
+const db = new DbManager(process.env.ATLAS_CONN_STR, [
+  "slots",
+  "doctors",
+  "clinics",
+  "users",
+]);
 db.init()
   .then(() => console.log("Connected to db"))
-  .catch(() => { throw new Error("Failed to connect to db") });
+  .catch(() => {
+    throw new Error("Failed to connect to db");
+  });
 
 let containerName: string;
 async function getContainerName(): Promise<string> {
@@ -44,10 +51,7 @@ const mqttOptions: IClientOptions = {
   password: process.env.MQTT_PASSWORD,
 };
 
-const mqttClient = mqtt.connect(
-  process.env.BROKER_ADDR,
-  mqttOptions
-);
+const mqttClient = mqtt.connect(process.env.BROKER_ADDR, mqttOptions);
 
 const serviceId: string = process.env.TEST_TOPIC ? `test` : uniqid();
 const heartbeatTopic = "heartbeat/appointments";
@@ -63,6 +67,22 @@ function publishResponse(reqId: string, data: object) {
   });
   mqttClient.publish(`res/${reqId}`, message);
   console.log(`Published response to res/${reqId}:\n${message}`);
+}
+
+function publishError(reqId: string, e: any) {
+  if (e instanceof DatabaseError) {
+    const error = JSON.parse(e.message);
+    error.status = 500;
+
+    publishResponse(reqId, error);
+  } else {
+    publishResponse(reqId, {
+      status: 500,
+      message: e,
+    });
+  }
+
+  console.error("Failed to process request", e);
 }
 
 mqttClient.on("connect", async () => {
@@ -155,17 +175,20 @@ mqttClient.on("message", async (topic, message) => {
           try {
             if (data.clinicId) {
               res = await db.withConnection(() => {
-                return db.collections.get("clinics").aggregate([
-                  { $match: { _id: new ObjectId(data.clinicId) } },
-                  {
-                    $lookup: {
-                      from: "doctors",
-                      localField: "_id",
-                      foreignField: "clinic",
-                      as: "doctors",
+                return db.collections
+                  .get("clinics")
+                  .aggregate([
+                    { $match: { _id: new ObjectId(data.clinicId) } },
+                    {
+                      $lookup: {
+                        from: "doctors",
+                        localField: "_id",
+                        foreignField: "clinic",
+                        as: "doctors",
+                      },
                     },
-                  },
-                ]).toArray();
+                  ])
+                  .toArray();
               }, true);
             } else {
               res = await db.withConnection(() => {
@@ -174,12 +197,7 @@ mqttClient.on("message", async (topic, message) => {
             }
             publishResponse(payload.reqId, res);
           } catch (e) {
-            if (e instanceof DatabaseError) {
-              publishResponse(payload.reqId, JSON.parse(e.message));
-            } else {
-              publishResponse(payload.reqId, { message: e });
-            }
-            console.error("Failed to process request", e);
+            publishError(payload.reqId, e);
           }
           break;
         }
@@ -187,27 +205,22 @@ mqttClient.on("message", async (topic, message) => {
         case "delete": {
           try {
             const res: any = await db.withConnection(() => {
-              return db.collections.get("clinics").deleteOne(
-                { _id: new ObjectId(data.clinicId), }
-              );
+              return db.collections
+                .get("clinics")
+                .deleteOne({ _id: new ObjectId(data.clinicId) });
             }, false);
 
             if (res.deletedCount > 0) {
               await db.withConnection(() => {
-                return db.collections.get("doctors").deleteMany(
-                  { clinic: new ObjectId(data.clinicId), }
-                );
+                return db.collections
+                  .get("doctors")
+                  .deleteMany({ clinic: new ObjectId(data.clinicId) });
               }, false);
             }
 
             publishResponse(payload.reqId, res);
           } catch (e) {
-            if (e instanceof DatabaseError) {
-              publishResponse(payload.reqId, JSON.parse(e.message));
-            } else {
-              publishResponse(payload.reqId, { message: e });
-            }
-            console.error("Failed to process request", e);
+            publishError(payload.reqId, e);
           }
           break;
         }
@@ -215,19 +228,14 @@ mqttClient.on("message", async (topic, message) => {
         case "post": {
           try {
             const res: any = await db.withConnection(() => {
-              return db.collections.get("clinics").insertOne(
-                { name: data.name, location: data.location, }
-              );
+              return db.collections
+                .get("clinics")
+                .insertOne({ name: data.name, location: data.location });
             }, false);
 
             publishResponse(payload.reqId, res);
           } catch (e) {
-            if (e instanceof DatabaseError) {
-              publishResponse(payload.reqId, JSON.parse(e.message));
-            } else {
-              publishResponse(payload.reqId, { message: e });
-            }
-            console.error("Failed to process request", e);
+            publishError(payload.reqId, e);
           }
           break;
         }
@@ -259,19 +267,14 @@ mqttClient.on("message", async (topic, message) => {
         case "delete": {
           try {
             const res: any = await db.withConnection(() => {
-              return db.collections.get("doctors").deleteOne(
-                { _id: new ObjectId(data.doctorId), }
-              );
+              return db.collections
+                .get("doctors")
+                .deleteOne({ _id: new ObjectId(data.doctorId) });
             }, false);
 
             publishResponse(payload.reqId, res);
           } catch (e) {
-            if (e instanceof DatabaseError) {
-              publishResponse(payload.reqId, JSON.parse(e.message));
-            } else {
-              publishResponse(payload.reqId, { message: e });
-            }
-            console.error("Failed to process request", e);
+            publishError(payload.reqId, e);
           }
           break;
         }
@@ -290,12 +293,7 @@ mqttClient.on("message", async (topic, message) => {
 
             publishResponse(payload.reqId, res);
           } catch (e) {
-            if (e instanceof DatabaseError) {
-              publishResponse(payload.reqId, JSON.parse(e.message));
-            } else {
-              publishResponse(payload.reqId, { message: e });
-            }
-            console.error("Failed to process request", e);
+            publishError(payload.reqId, e);
           }
           break;
         }
@@ -344,20 +342,28 @@ async function handleAppointmentsRequest(payload: any) {
 
       try {
         const doctorSlots = await db.withConnection(async () => {
-          return db.collections.get("slots").find(
-            { doctorId: payload.data.doctorId },
-            { projection: { _id: 0, doctorId: 0 } },
-          ).toArray();
-        }, true)
+          return db.collections
+            .get("slots")
+            .find(
+              { doctorId: payload.data.doctorId },
+              { projection: { _id: 0, doctorId: 0 } }
+            )
+            .toArray();
+        }, true);
 
         const doctor = await db.withConnection(async () => {
-          return db.collections.get("doctors").findOne({ _id: payload.data.doctorId });
+          return db.collections
+            .get("doctors")
+            .findOne({ _id: payload.data.doctorId });
         }, true);
         const clinic = await db.withConnection(async () => {
-          return await db.collections.get("clinics").findOne({ _id: doctor?.clinic });
+          return await db.collections
+            .get("clinics")
+            .findOne({ _id: doctor?.clinic });
         }, true);
         if (!doctor || !clinic) {
           publishResponse(payload.reqId, {
+            status: 500,
             message: "Could not fetch doctor data for slot",
           });
           break;
@@ -377,12 +383,7 @@ async function handleAppointmentsRequest(payload: any) {
 
         publishResponse(payload.reqId, res);
       } catch (e) {
-        if (e instanceof DatabaseError) {
-          publishResponse(payload.reqId, JSON.parse(e.message));
-        } else {
-          publishResponse(payload.reqId, { message: e });
-        }
-        console.error("Failed to process request", e);
+        publishError(payload.reqId, e);
       }
 
       break;
@@ -406,7 +407,8 @@ async function handleAppointmentsRequest(payload: any) {
         if (!slot) {
           console.error("Slot does not exist");
           publishResponse(payload.reqId, {
-            message: "Error: Slot does not exist",
+            status: 500,
+            message: "Slot does not exist",
           });
           return;
         }
@@ -415,7 +417,8 @@ async function handleAppointmentsRequest(payload: any) {
           console.log(payload);
           console.log(slot);
           publishResponse(payload.reqId, {
-            message: "Error: Slot already booked",
+            status: 500,
+            message: "Slot already booked",
           });
           return;
         }
@@ -423,10 +426,12 @@ async function handleAppointmentsRequest(payload: any) {
         slot.isBooked = true;
         slot.bookedBy = payload.data.userId;
         await db.withConnection(() => {
-          return db.collections.get("slots").updateOne(
-            { _id: slot._id },
-            { $set: { isBooked: true, bookedBy: payload.data.userId } },
-          );
+          return db.collections
+            .get("slots")
+            .updateOne(
+              { _id: slot._id },
+              { $set: { isBooked: true, bookedBy: payload.data.userId } }
+            );
         }, false);
 
         // Notify the doctor that a booking has been confirmed
@@ -466,18 +471,13 @@ async function handleAppointmentsRequest(payload: any) {
         // send live update to open calendars
         mqttClient.publish(
           `appointments/${payload.data.doctorId}`,
-          JSON.stringify(slot),
+          JSON.stringify(slot)
         );
 
         console.log(`Slot successfully booked: ${payload.data.startTime}`);
         publishResponse(payload.reqId, { message: "Slot successfully booked" });
       } catch (e) {
-        if (e instanceof DatabaseError) {
-          publishResponse(payload.reqId, JSON.parse(e.message));
-        } else {
-          publishResponse(payload.reqId, { message: e });
-        }
-        console.error("Failed to process request", e);
+        publishError(payload.reqId, e);
       }
       break;
 
@@ -528,10 +528,12 @@ async function handleAppointmentsRequest(payload: any) {
         slot.bookedBy = null;
 
         await db.withConnection(() => {
-          return db.collections.get("slots").updateOne(
-            { _id: slot._id },
-            { $set: { isBooked: false, bookedBy: null } },
-          );
+          return db.collections
+            .get("slots")
+            .updateOne(
+              { _id: slot._id },
+              { $set: { isBooked: false, bookedBy: null } }
+            );
         }, false);
 
         publishResponse(payload.reqId, {
@@ -539,7 +541,7 @@ async function handleAppointmentsRequest(payload: any) {
         });
         mqttClient.publish(
           `appointments/${payload.data.doctorId}`,
-          JSON.stringify(slot),
+          JSON.stringify(slot)
         );
 
         // Notify the doctor that a booking has been cancelled
@@ -576,15 +578,11 @@ async function handleAppointmentsRequest(payload: any) {
           })
         );
 
-
-        console.log(`Booking successfully cancelled: ${payload.data.startTime}`);
+        console.log(
+          `Booking successfully cancelled: ${payload.data.startTime}`
+        );
       } catch (e) {
-        if (e instanceof DatabaseError) {
-          publishResponse(payload.reqId, JSON.parse(e.message));
-        } else {
-          publishResponse(payload.reqId, { message: e });
-        }
-        console.error("Failed to process request", e);
+        publishError(payload.reqId, e);
       }
       break;
 
@@ -681,17 +679,19 @@ async function cancelAppointmentByDoctor(payload: any) {
     slot.bookedBy = null;
 
     await db.withConnection(() => {
-      return db.collections.get("slots").updateOne(
-        { _id: slot._id },
-        { $set: { isBooked: false, bookedBy: null } },
-      );
+      return db.collections
+        .get("slots")
+        .updateOne(
+          { _id: slot._id },
+          { $set: { isBooked: false, bookedBy: null } }
+        );
     }, false);
     publishResponse(payload.reqId, {
       message: "Booking successfully cancelled",
     });
     mqttClient.publish(
       `appointments/${payload.data.doctorId}`,
-      JSON.stringify(slot),
+      JSON.stringify(slot)
     );
 
     // Notify the user that a booking has been cancelled
@@ -708,57 +708,52 @@ async function cancelAppointmentByDoctor(payload: any) {
             html: `<p>Your booking has been cancelled by doctor for ${payload.data.startTime}</p><p>If you have any questions, please contact the clinic.</p>`,
           },
         },
-      }),
+      })
     );
 
-    console.log(`Booking successfully cancelled by doctor: ${payload.data.startTime}`);
+    console.log(
+      `Booking successfully cancelled by doctor: ${payload.data.startTime}`
+    );
   } catch (e) {
-    if (e instanceof DatabaseError) {
-      publishResponse(payload.reqId, JSON.parse(e.message));
-    } else {
-      publishResponse(payload.reqId, { message: e });
-    }
-    console.error("Failed to process request", e);
+    publishError(payload.reqId, e);
   }
 }
 
 async function getAllDoctors(payload: any) {
   try {
     let allDoctors: any = await db.withConnection(() => {
-      return db.collections.get("doctors").aggregate([
-        { $match: { _id: { $exists: true } } },
-        {
-          $lookup: {
-            from: "clinics",
-            localField: "clinic",
-            foreignField: "_id",
-            as: "clinic",
-          },
-        },
-        {
-          $unwind: "$clinic",
-        },
-        {
-          $project: {
-            _id: 1,
-            name: 1,
-            type: 1,
-            clinic: {
-              _id: "$clinic._id",
-              name: "$clinic.name",
+      return db.collections
+        .get("doctors")
+        .aggregate([
+          { $match: { _id: { $exists: true } } },
+          {
+            $lookup: {
+              from: "clinics",
+              localField: "clinic",
+              foreignField: "_id",
+              as: "clinic",
             },
           },
-        },
-      ]).toArray();
+          {
+            $unwind: "$clinic",
+          },
+          {
+            $project: {
+              _id: 1,
+              name: 1,
+              type: 1,
+              clinic: {
+                _id: "$clinic._id",
+                name: "$clinic.name",
+              },
+            },
+          },
+        ])
+        .toArray();
     }, true);
     publishResponse(payload.reqId, allDoctors);
   } catch (e) {
-    if (e instanceof DatabaseError) {
-      publishResponse(payload.reqId, JSON.parse(e.message));
-    } else {
-      publishResponse(payload.reqId, { message: e });
-    }
-    console.error("Failed to process request", e);
+    publishError(payload.reqId, e);
   }
 }
 
@@ -780,12 +775,7 @@ async function handleSlotRequest(payload: any) {
       return;
     }
   } catch (e) {
-    if (e instanceof DatabaseError) {
-      publishResponse(payload.reqId, JSON.parse(e.message));
-    } else {
-      publishResponse(payload.reqId, { message: e });
-    }
-    console.error("Failed to process request", e);
+    publishError(payload.reqId, e);
   }
 
   // Check if the start time is before the current timme
@@ -856,16 +846,13 @@ async function handleSlotRequest(payload: any) {
       const startHour = startDate.getHours();
       const endHour = endDate.getHours();
       if (startHour < 8 || endHour > 20) {
-        publishResponse(payload.reqId, { message: "Slot outside working hours" });
+        publishResponse(payload.reqId, {
+          message: "Slot outside working hours",
+        });
         return;
       }
     } catch (e) {
-      if (e instanceof DatabaseError) {
-        publishResponse(payload.reqId, JSON.parse(e.message));
-      } else {
-        publishResponse(payload.reqId, { message: e });
-      }
-      console.error("Failed to process request", e);
+      publishError(payload.reqId, e);
     }
   }
 
@@ -905,7 +892,7 @@ async function createSlot(
   };
   try {
     await db.withConnection(() => {
-      return db.collections.get("slots").insertOne(slot)
+      return db.collections.get("slots").insertOne(slot);
     }, false);
     publishResponse(payload.reqId, { message: "Slot created" });
     // Notify the user that a new slot has been created
@@ -927,12 +914,7 @@ async function createSlot(
       })
     );
   } catch (e) {
-    if (e instanceof DatabaseError) {
-      publishResponse(payload.reqId, JSON.parse(e.message));
-    } else {
-      publishResponse(payload.reqId, { message: e });
-    }
-    console.error("Failed to process request", e);
+    publishError(payload.reqId, e);
   }
 }
 
@@ -952,16 +934,11 @@ async function deleteSlot(payload: any, doctorId: ObjectId, startDate: Date) {
     }
 
     await db.withConnection(() => {
-      return db.collections.get("slots").deleteOne({ _id: slot._id })
+      return db.collections.get("slots").deleteOne({ _id: slot._id });
     }, false);
     publishResponse(payload.reqId, { message: "Slot deleted" });
   } catch (e) {
-    if (e instanceof DatabaseError) {
-      publishResponse(payload.reqId, JSON.parse(e.message));
-    } else {
-      publishResponse(payload.reqId, { message: e });
-    }
-    console.error("Failed to process request", e);
+    publishError(payload.reqId, e);
   }
 }
 
@@ -1003,18 +980,16 @@ async function editSlot(
     slot.startTime = startDate;
     slot.endTime = endDate;
     await db.withConnection(() => {
-      return db.collections.get("slots").updateOne(
-        { _id: slot._id },
-        { $set: { startTime: startDate, endTime: endDate } })
+      return db.collections
+        .get("slots")
+        .updateOne(
+          { _id: slot._id },
+          { $set: { startTime: startDate, endTime: endDate } }
+        );
     }, false);
     publishResponse(payload.reqId, { message: "Slot edited" });
   } catch (e) {
-    if (e instanceof DatabaseError) {
-      publishResponse(payload.reqId, JSON.parse(e.message));
-    } else {
-      publishResponse(payload.reqId, { message: e });
-    }
-    console.error("Failed to process request", e);
+    publishError(payload.reqId, e);
   }
 }
 
@@ -1030,11 +1005,59 @@ async function getAppointmentsForDoctorOnDate(payload: any) {
 
   try {
     const dateAppointments: any = await db.withConnection(() => {
-      return db.collections.get("slots").aggregate([
+      return db.collections
+        .get("slots")
+        .aggregate([
+          {
+            $match: {
+              doctorId: doctorId,
+              startTime: { $gte: startOfDay, $lt: endOfDay },
+            },
+          },
+          {
+            $lookup: {
+              from: "users",
+              localField: "bookedBy",
+              foreignField: "_id",
+              as: "patientName",
+            },
+          },
+          {
+            $unwind: "$patientName",
+          },
+          {
+            $project: {
+              startTime: 1,
+              endTime: 1,
+              doctorId: 1,
+              bookedBy: 1,
+              patientName: "$patientName.name",
+            },
+          },
+          {
+            $sort: { startTime: 1 },
+          },
+        ])
+        .toArray();
+    }, true);
+    publishResponse(payload.reqId, dateAppointments);
+  } catch (e) {
+    publishError(payload.reqId, e);
+  }
+}
+
+async function getAppointmentsForDoctorUpcoming(payload: any) {
+  const doctorId = new ObjectId(payload.data.doctorId);
+  const startDate = new Date();
+
+  const upcomingAppointments: any = await db.withConnection(() => {
+    return db.collections
+      .get("slots")
+      .aggregate([
         {
           $match: {
             doctorId: doctorId,
-            startTime: { $gte: startOfDay, $lt: endOfDay },
+            startTime: { $gte: startDate },
           },
         },
         {
@@ -1060,58 +1083,11 @@ async function getAppointmentsForDoctorOnDate(payload: any) {
         {
           $sort: { startTime: 1 },
         },
-      ]).toArray();
-    }, true);
-    publishResponse(payload.reqId, dateAppointments);
-  } catch (e) {
-    if (e instanceof DatabaseError) {
-      publishResponse(payload.reqId, JSON.parse(e.message));
-    } else {
-      publishResponse(payload.reqId, { message: e });
-    }
-    console.error("Failed to process request", e);
-  }
-}
-
-async function getAppointmentsForDoctorUpcoming(payload: any) {
-  const doctorId = new ObjectId(payload.data.doctorId);
-  const startDate = new Date();
-
-  const upcomingAppointments: any = await db.withConnection(() => {
-    return db.collections.get("slots").aggregate([
-      {
-        $match: {
-          doctorId: doctorId,
-          startTime: { $gte: startDate },
+        {
+          $limit: 200,
         },
-      },
-      {
-        $lookup: {
-          from: "users",
-          localField: "bookedBy",
-          foreignField: "_id",
-          as: "patientName",
-        },
-      },
-      {
-        $unwind: "$patientName",
-      },
-      {
-        $project: {
-          startTime: 1,
-          endTime: 1,
-          doctorId: 1,
-          bookedBy: 1,
-          patientName: "$patientName.name",
-        },
-      },
-      {
-        $sort: { startTime: 1 },
-      },
-      {
-        $limit: 200,
-      },
-    ]).toArray();
+      ])
+      .toArray();
   }, true);
 
   publishResponse(payload.reqId, upcomingAppointments);
@@ -1133,28 +1109,28 @@ async function getAppointmentsForDoctorPerPatient(payload: any) {
     const patientIds = patients.map((patient: any) => patient._id);
 
     const patientAppointments: Array<any> = await db.withConnection(() => {
-      return db.collections.get("slots").find({
-        doctorId: doctorId,
-        bookedBy: { $in: patientIds },
-      }).sort({ startTime: 1 })
+      return db.collections
+        .get("slots")
+        .find({
+          doctorId: doctorId,
+          bookedBy: { $in: patientIds },
+        })
+        .sort({ startTime: 1 })
         .toArray();
     }, true);
 
     console.log(patientAppointments);
 
-    const appointmentsWithNames = patientAppointments.map((appointment: any) => {
-      appointment.patientName = patientName;
-      return appointment;
-    });
+    const appointmentsWithNames = patientAppointments.map(
+      (appointment: any) => {
+        appointment.patientName = patientName;
+        return appointment;
+      }
+    );
 
     publishResponse(reqId, appointmentsWithNames);
   } catch (e) {
-    if (e instanceof DatabaseError) {
-      publishResponse(payload.reqId, JSON.parse(e.message));
-    } else {
-      publishResponse(payload.reqId, { message: e });
-    }
-    console.error("Failed to process request", e);
+    publishError(payload.reqId, e);
   }
 }
 
@@ -1164,49 +1140,47 @@ async function getAppointmentsForUser(payload: any) {
 
   try {
     const userAppointments: Array<any> = await db.withConnection(() => {
-      return db.collections.get("slots").aggregate([
-        {
-          $match: {
-            bookedBy: userId,
-            startTime: { $gte: new Date() },
-          },
-        },
-        {
-          $lookup: {
-            from: "doctors",
-            localField: "doctorId",
-            foreignField: "_id",
-            as: "doctor",
-          },
-        },
-        {
-          $unwind: "$doctor",
-        },
-        {
-          $project: {
-            startTime: 1,
-            endTime: 1,
-            bookedBy: 1,
-            doctor: {
-              _id: "$doctor._id",
-              name: "$doctor.name",
+      return db.collections
+        .get("slots")
+        .aggregate([
+          {
+            $match: {
+              bookedBy: userId,
+              startTime: { $gte: new Date() },
             },
           },
-        },
-        {
-          $sort: { startTime: 1 },
-        },
-      ]).toArray();
+          {
+            $lookup: {
+              from: "doctors",
+              localField: "doctorId",
+              foreignField: "_id",
+              as: "doctor",
+            },
+          },
+          {
+            $unwind: "$doctor",
+          },
+          {
+            $project: {
+              startTime: 1,
+              endTime: 1,
+              bookedBy: 1,
+              doctor: {
+                _id: "$doctor._id",
+                name: "$doctor.name",
+              },
+            },
+          },
+          {
+            $sort: { startTime: 1 },
+          },
+        ])
+        .toArray();
     }, true);
 
     publishResponse(reqId, userAppointments);
   } catch (e) {
-    if (e instanceof DatabaseError) {
-      publishResponse(payload.reqId, JSON.parse(e.message));
-    } else {
-      publishResponse(payload.reqId, { message: e });
-    }
-    console.error("Failed to process request", e);
+    publishError(payload.reqId, e);
   }
 }
 
@@ -1229,17 +1203,11 @@ async function getSubscriptionStatus(payload: any) {
       ),
     });
   } catch (e) {
-    if (e instanceof DatabaseError) {
-      publishResponse(payload.reqId, JSON.parse(e.message));
-    } else {
-      publishResponse(payload.reqId, { message: e });
-    }
-    console.error("Failed to process request", e);
+    publishError(payload.reqId, e);
   }
 }
 
 async function subscribeToDoctorCalendar(payload: any) {
-
   try {
     const userId = new ObjectId(payload.data.userId);
     const doctorId = new ObjectId(payload.data.doctorId);
@@ -1278,26 +1246,22 @@ async function subscribeToDoctorCalendar(payload: any) {
 
     // Update the list of subscribers
     await db.withConnection(() => {
-      return db.collections.get("doctors").updateOne(
-        { _id: doctorId },
-        { $set: { subscribers: newSubscribersList } }
-      );
+      return db.collections
+        .get("doctors")
+        .updateOne(
+          { _id: doctorId },
+          { $set: { subscribers: newSubscribersList } }
+        );
     }, false);
 
     const message = `Subscribed to ${doctor.name}'s calendar`;
     publishResponse(payload.reqId, { message });
   } catch (e) {
-    if (e instanceof DatabaseError) {
-      publishResponse(payload.reqId, JSON.parse(e.message));
-    } else {
-      publishResponse(payload.reqId, { message: e });
-    }
-    console.error("Failed to process request", e);
+    publishError(payload.reqId, e);
   }
 }
 
 async function unsubscribeFromDoctorCalendar(payload: any) {
-
   try {
     const userId = new ObjectId(payload.data.userId);
     const doctorId = new ObjectId(payload.data.doctorId);
@@ -1340,7 +1304,7 @@ async function unsubscribeFromDoctorCalendar(payload: any) {
       return db.collections.get("doctors").updateOne(
         { _id: doctorId },
         {
-          $set: { subscribers: newSubscribersList }
+          $set: { subscribers: newSubscribersList },
         }
       );
     }, false);
@@ -1348,12 +1312,6 @@ async function unsubscribeFromDoctorCalendar(payload: any) {
     const message = `Unsubscribed from ${doctor.name}'s calendar`;
     publishResponse(payload.reqId, { message });
   } catch (e) {
-    if (e instanceof DatabaseError) {
-      publishResponse(payload.reqId, JSON.parse(e.message));
-    } else {
-      publishResponse(payload.reqId, { message: e });
-    }
-    console.error("Failed to process request", e);
+    publishError(payload.reqId, e);
   }
-
 }

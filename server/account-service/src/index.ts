@@ -54,14 +54,16 @@ function createDoctorToken(doctor: User) {
       name: doctor.name,
     },
     jwtKey,
-    { expiresIn: "7d" },
+    { expiresIn: "7d" }
   );
 }
 
 const db = new DbManager(process.env.ATLAS_CONN_STR, ["users", "doctors"]);
 db.init()
   .then(() => console.log("Connected to db"))
-  .catch(() => { throw new Error("Failed to connect to db") });
+  .catch(() => {
+    throw new Error("Failed to connect to db");
+  });
 
 /*
  * Email regex
@@ -129,8 +131,10 @@ const authenticateUser = async (message: Buffer) => {
       return;
     }
     const user = await db.withConnection(async () => {
-      return db.collections.get("users").findOne({ personnummer: data.personnummer });
-    }, true)
+      return db.collections
+        .get("users")
+        .findOne({ personnummer: data.personnummer });
+    }, true);
     if (!user) {
       broker.publishError(reqId, "User does not exist");
       console.error(`User does not exist: \n${message}`);
@@ -145,7 +149,10 @@ const authenticateUser = async (message: Buffer) => {
     }
   } catch (e) {
     if (e instanceof DatabaseError) {
-      broker.publishResponse(reqId, JSON.parse(e.message));
+      const error = JSON.parse(e.message);
+      error.status = 500;
+
+      broker.publishResponse(reqId, error);
     } else {
       broker.publishError(reqId, `Unable to process request: ${e}`);
     }
@@ -208,7 +215,7 @@ const createUser = async (message: Buffer) => {
 
   try {
     const userExists = await db.withConnection(async () => {
-      return db.collections.get("users").findOne({ personnummer: pnParsed, })
+      return db.collections.get("users").findOne({ personnummer: pnParsed });
     }, true);
 
     const user = {
@@ -230,7 +237,10 @@ const createUser = async (message: Buffer) => {
     }
   } catch (e) {
     if (e instanceof DatabaseError) {
-      broker.publishResponse(reqId, JSON.parse(e.message));
+      const error = JSON.parse(e.message);
+      error.status = 500;
+
+      broker.publishResponse(reqId, error);
     } else {
       broker.publishError(reqId, `Unable to process request: ${e}`);
     }
@@ -315,4 +325,3 @@ const broker: ServiceBroker = new ServiceBroker(
     },
   }
 );
-
