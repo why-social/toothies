@@ -41,14 +41,9 @@ export class Login {
   form = this.formBuilder.group({
     personnummer: [
       "",
-      Validators.pattern(/^(?:19|20)?(\d{2})(\d{2})(\d{2})-?(\d{4})$/),
+      Validators.pattern(/^(?:19|20)?(\d{2})(\d{2})(\d{2})-?(\d{4})|admin$/),
     ],
-    password: [
-      "",
-      Validators.pattern(
-        /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d!$%^&*()_+={}\[\]:;"'<>,.?/\\|`~\-]{8,}$/,
-      ),
-    ],
+    password: [""],
   });
 
   submit() {
@@ -74,9 +69,7 @@ export class Login {
 
             this.logging = false;
           },
-          error: (error) => {
-            console.error("Error registering user: ", error);
-
+          error: () => {
             this.logging = false;
           },
         });

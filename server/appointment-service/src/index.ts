@@ -42,7 +42,7 @@ const mqttOptions: IClientOptions = {
 
 const mqttClient = mqtt.connect(
   "tls://0fc2e0e6e10649f790f059e77c606dfe.s1.eu.hivemq.cloud:8883",
-  mqttOptions,
+  mqttOptions
 );
 
 const serviceId: string = process.env.TEST_TOPIC ? `test` : uniqid();
@@ -87,6 +87,11 @@ mqttClient.on("connect", async () => {
     console.log(`Subscribed to slots/#`);
   });
 
+  mqttClient.subscribe(serviceId + "/subscriptions/#", (err) => {
+    if (err) return console.error("Failed to subscribe to request topic");
+    console.log(`Subscribed to subscriptions/#`);
+  });
+
   // Heartbeat
   setInterval(() => {
     const serviceMsg = new Service(serviceId, containerName).toString();
@@ -126,7 +131,7 @@ mqttClient.on("message", async (topic, message) => {
   const params = /^\w+\/(\w+)\/(\w+)$/g.exec(topic);
   if (params?.length != 3) {
     console.error(
-      "Invalid topic. Expected format: <instanceId>/<endpoint>/<action>",
+      "Invalid topic. Expected format: <instanceId>/<endpoint>/<action>"
     );
     return;
   }
@@ -172,9 +177,52 @@ mqttClient.on("message", async (topic, message) => {
             }
             console.error("Failed to process request", e);
           }
+          break;
+        }
+
+        case "delete": {
+          try {
+            const res: any = await db.withConnection(() => {
+              return db.collections.get("clinics").deleteOne(
+                { _id: new ObjectId(data.clinicId), }
+              );
+            }, false);
+
+            if (res.deletedCount > 0) {
+              await db.withConnection(() => {
+                return db.collections.get("doctors").deleteMany(
+                  { clinic: new ObjectId(data.clinicId), }
+                );
+              }, false);
+            }
+
+            publishResponse(payload.reqId, res);
+          } catch (e) {
+            publishResponse(payload.reqId, { message: e });
+            console.error("Failed to process request", e);
+          }
+          break;
+        }
+
+        case "post": {
+          try {
+            const res: any = await db.withConnection(() => {
+              return db.collections.get("clinics").insertOne(
+                { name: data.name, location: data.location, }
+              );
+            }, false);
+
+            publishResponse(payload.reqId, res);
+          } catch (e) {
+            publishResponse(payload.reqId, { message: e });
+            console.error("Failed to process request", e);
+          }
+          break;
         }
       }
+      break;
     }
+
     case "appointments": {
       if (!action) {
         console.error("Invalid query:");
@@ -191,9 +239,47 @@ mqttClient.on("message", async (topic, message) => {
 
     case "doctors": {
       switch (action) {
-        case "get":
+        case "get": {
           await getAllDoctors(payload);
           break;
+        }
+
+        case "delete": {
+          try {
+            const res: any = await db.withConnection(() => {
+              return db.collections.get("doctors").deleteOne(
+                { _id: new ObjectId(data.doctorId), }
+              );
+            }, false);
+
+            publishResponse(payload.reqId, res);
+          } catch (e) {
+            publishResponse(payload.reqId, { message: e });
+            console.error("Failed to process request", e);
+          }
+          break;
+        }
+
+        case "post": {
+          try {
+            const res: any = await db.withConnection(() => {
+              return db.collections.get("doctors").insertOne({
+                name: data.name,
+                type: data.type,
+                clinic: data.clinic,
+                email: data.email,
+                passwordHash: data.passwordHash,
+              });
+            }, false);
+
+            publishResponse(payload.reqId, res);
+          } catch (e) {
+
+            publishResponse(payload.reqId, { message: e });
+            console.error("Failed to process request", e);
+          }
+          break;
+        }
       }
       break;
     }
@@ -201,6 +287,25 @@ mqttClient.on("message", async (topic, message) => {
     case "slots": {
       handleSlotRequest(payload);
       break;
+    }
+
+    case "subscriptions": {
+      if (!action || !data.userId || !data.doctorId) {
+        console.error("Invalid query:");
+        console.log(payload);
+        break;
+      }
+      switch (action) {
+        case "sub":
+          subscribeToDoctorCalendar(payload);
+          break;
+        case "unsub":
+          unsubscribeFromDoctorCalendar(payload);
+          break;
+        case "isSub":
+          getSubscriptionStatus(payload);
+          break;
+      }
     }
   }
 });
@@ -305,14 +410,6 @@ async function handleAppointmentsRequest(payload: any) {
           );
         }, false);
 
-        publishResponse(payload.reqId, { message: "Slot successfully booked" });
-
-        // send live update to open calendars
-        mqttClient.publish(
-          `appointments/${payload.data.doctorId}`,
-          JSON.stringify(slot),
-        );
-
         // Notify the doctor that a booking has been confirmed
         mqttClient.publish(
           "notifications/doctor",
@@ -327,9 +424,34 @@ async function handleAppointmentsRequest(payload: any) {
                 html: `<p>A booking has been confirmed for ${payload.data.startTime}</p>`,
               },
             },
-          }),
+          })
         );
+
+        // Notify the user that a booking has been confirmed
+        mqttClient.publish(
+          "notifications/user",
+          JSON.stringify({
+            timestamp: new Date(),
+            reqId: uniqid(),
+            data: {
+              userId: payload.data.userId,
+              emailMessage: {
+                subject: "Booking Confirmed",
+                text: `Your booking has been confirmed for ${payload.data.startTime}\nIf you have any questions, please contact the clinic.`,
+                html: `<p>Your booking has been confirmed for ${payload.data.startTime}</p><p>If you have any questions, please contact the clinic.</p>`,
+              },
+            },
+          })
+        );
+
+        // send live update to open calendars
+        mqttClient.publish(
+          `appointments/${payload.data.doctorId}`,
+          JSON.stringify(slot),
+        );
+
         console.log(`Slot successfully booked: ${payload.data.startTime}`);
+        publishResponse(payload.reqId, { message: "Slot successfully booked" });
       } catch (e) {
         if (e instanceof DatabaseError) {
           publishResponse(payload.reqId, JSON.parse(e.message));
@@ -415,8 +537,26 @@ async function handleAppointmentsRequest(payload: any) {
                 html: `<p>A booking has been cancelled by patient for ${payload.data.startTime}</p>`,
               },
             },
-          }),
+          })
         );
+
+        // Notify the user that a booking has been cancelled
+        mqttClient.publish(
+          "notifications/user",
+          JSON.stringify({
+            timestamp: new Date(),
+            reqId: uniqid(),
+            data: {
+              userId: payload.data.userId,
+              emailMessage: {
+                subject: "Booking Cancelled",
+                text: `Your booking has been cancelled for ${payload.data.startTime}\nIf you have any questions, please contact the clinic.`,
+                html: `<p>Your booking has been cancelled for ${payload.data.startTime}</p><p>If you have any questions, please contact the clinic.</p>`,
+              },
+            },
+          })
+        );
+
 
         console.log(`Booking successfully cancelled: ${payload.data.startTime}`);
       } catch (e) {
@@ -612,10 +752,17 @@ async function handleSlotRequest(payload: any) {
   const startDate = new Date(Number(payload.data.body.startDate));
   const doctorId = new ObjectId(payload.data.doctorId);
 
-  // TODO (once doctors are added to doctors collection) Check if the doctor exists
-  // const doctor = await doctors.findOne({_id: new Object(payload.doctorId)});
-  // if(!doctor)
-  // 	return mqttClient.publish(payload.responseTopic, JSON.stringify({message: "Doctor not found"}));
+  try {
+    const doctor = await db.withConnection(() => {
+      return db.collections.get("doctors").findOne({ _id: doctorId });
+    }, true);
+    if (!doctor) {
+      publishResponse(payload.reqId, { message: "Doctor not found" });
+      return;
+    }
+  } catch (e) {
+
+  }
 
   // Check if the start time is before the current timme
   if (payload.data.body.startDate <= new Date()) {
@@ -723,7 +870,7 @@ async function createSlot(
   payload: any,
   doctorId: ObjectId,
   startDate: Date,
-  endDate: Date,
+  endDate: Date
 ) {
   const slot = {
     doctorId: doctorId,
@@ -733,8 +880,28 @@ async function createSlot(
     test: true,
   };
   try {
-    await db.withConnection(() => { return db.collections.get("slots").insertOne(slot) }, false);
+    await db.withConnection(() => {
+      return db.collections.get("slots").insertOne(slot)
+    }, false);
     publishResponse(payload.reqId, { message: "Slot created" });
+    // Notify the user that a new slot has been created
+    mqttClient.publish(
+      "notifications/subscription/slotCreated",
+      JSON.stringify({
+        timestamp: new Date(),
+        reqId: uniqid(),
+        data: {
+          doctorId: doctorId,
+          startTime: startDate,
+          endTime: endDate,
+          emailMessage: {
+            subject: "Booking Cancelled by Doctor",
+            text: `Your booking has been cancelled by doctor for ${payload.data.startTime}\nIf you have any questions, please contact the clinic.`,
+            html: `<p>Your booking has been cancelled by doctor for ${payload.data.startTime}</p><p>If you have any questions, please contact the clinic.</p>`,
+          },
+        },
+      })
+    );
   } catch (e) {
     if (e instanceof DatabaseError) {
       publishResponse(payload.reqId, JSON.parse(e.message));
@@ -760,7 +927,9 @@ async function deleteSlot(payload: any, doctorId: ObjectId, startDate: Date) {
       return;
     }
 
-    await db.withConnection(() => { return db.collections.get("slots").deleteOne({ _id: slot._id }) }, false);
+    await db.withConnection(() => {
+      return db.collections.get("slots").deleteOne({ _id: slot._id })
+    }, false);
     publishResponse(payload.reqId, { message: "Slot deleted" });
   } catch (e) {
     if (e instanceof DatabaseError) {
@@ -776,7 +945,7 @@ async function editSlot(
   payload: any,
   doctorId: ObjectId,
   startDate: Date,
-  endDate: Date,
+  endDate: Date
 ) {
   if (!payload.data.body.oldStartDate) {
     publishResponse(payload.reqId, { message: "Invalid request" });
@@ -1015,4 +1184,146 @@ async function getAppointmentsForUser(payload: any) {
     }
     console.error("Failed to process request", e);
   }
+}
+
+async function getSubscriptionStatus(payload: any) {
+  try {
+    const userId = new ObjectId(payload.data.userId);
+    const doctorId = new ObjectId(payload.data.doctorId);
+
+    const doctor: any = await db.withConnection(() => {
+      return db.collections.get("doctors").findOne({ _id: doctorId });
+    }, true);
+    if (!doctor) {
+      publishResponse(payload.reqId, { message: "Doctor not found" });
+      return;
+    }
+
+    publishResponse(payload.reqId, {
+      subscribed: doctor.subscribers?.some(
+        (subscriber: ObjectId) => subscriber.toString() === userId.toString()
+      ),
+    });
+  } catch (e) {
+    console.error("Unable to process request", e);
+    publishResponse(payload.reqId, { message: e });
+  }
+}
+
+async function subscribeToDoctorCalendar(payload: any) {
+
+  try {
+    const userId = new ObjectId(payload.data.userId);
+    const doctorId = new ObjectId(payload.data.doctorId);
+
+    const doctor: any = await db.withConnection(() => {
+      return db.collections.get("doctors").findOne({ _id: doctorId });
+    }, true);
+    if (!doctor) {
+      publishResponse(payload.reqId, { message: "Doctor not found" });
+      return;
+    }
+
+    const user: any = await db.withConnection(() => {
+      return db.collections.get("users").findOne({ _id: userId });
+    }, true);
+    if (!user) {
+      publishResponse(payload.reqId, { message: "User not found" });
+      return;
+    }
+
+    // Check if user is already subscribed to the calendar
+    if (
+      doctor.subscribers?.some(
+        (subscriber: ObjectId) => subscriber.toString() === userId.toString()
+      )
+    ) {
+      publishResponse(payload.reqId, {
+        message: "Already subscribed to this calendar",
+      });
+      return;
+    }
+
+    // Add user to the list of subscribers
+    let newSubscribersList = doctor.subscribers || [];
+    newSubscribersList.push(userId);
+
+    // Update the list of subscribers
+    await db.withConnection(() => {
+      return db.collections.get("doctors").updateOne(
+        { _id: doctorId },
+        { $set: { subscribers: newSubscribersList } }
+      );
+    }, false);
+
+    const message = `Subscribed to ${doctor.name}'s calendar`;
+    publishResponse(payload.reqId, { message });
+  } catch (err) {
+    console.log(err);
+    publishResponse(payload.reqId, {
+      message: "An error occurred while subscribing to a calendar",
+    });
+    return;
+  }
+}
+
+async function unsubscribeFromDoctorCalendar(payload: any) {
+
+  try {
+    const userId = new ObjectId(payload.data.userId);
+    const doctorId = new ObjectId(payload.data.doctorId);
+
+    const doctor: any = await db.withConnection(() => {
+      return db.collections.get("doctors").findOne({ _id: doctorId });
+    }, true);
+    if (!doctor) {
+      publishResponse(payload.reqId, { message: "Doctor not found" });
+      return;
+    }
+
+    const user: any = await db.withConnection(() => {
+      return db.collections.get("users").findOne({ _id: userId });
+    }, true);
+    if (!user) {
+      publishResponse(payload.reqId, { message: "User not found" });
+      return;
+    }
+
+    // Check if user is already unsubscribed from the calendar
+    if (
+      !doctor.subscribers?.some(
+        (subscriber: ObjectId) => subscriber.toString() === userId.toString()
+      )
+    ) {
+      publishResponse(payload.reqId, {
+        message: "Cannot unsubscribe from a calendar you are not subscribed to",
+      });
+      return;
+    }
+
+    // Remove the user from the list of subscribers
+    let oldSubscribersList = doctor.subscribers || [];
+    const newSubscribersList = oldSubscribersList.filter(
+      (subscriber: ObjectId) => subscriber.toString() !== userId.toString()
+    );
+    // Update the list of subscribers
+    await db.withConnection(() => {
+      return db.collections.get("doctors").updateOne(
+        { _id: doctorId },
+        {
+          $set: { subscribers: newSubscribersList }
+        }
+      );
+    }, false);
+
+    const message = `Unsubscribed from ${doctor.name}'s calendar`;
+    publishResponse(payload.reqId, { message });
+  } catch (err) {
+    console.log(err);
+    publishResponse(payload.reqId, {
+      message: "An error occurred while unsubscribing from a calendar",
+    });
+    return;
+  }
+
 }

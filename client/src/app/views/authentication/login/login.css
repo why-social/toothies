@@ -1,5 +1,16 @@
+:host {
+  display: flex;
+  flex-direction: row;
+  gap: 1rem;
+  align-content: center;
+  padding: 1rem;
+  justify-content: center;
+  color: var(--mat-sys-on-background);
+}
+
 .container {
-  max-width: 600px;
+  max-width: 400px;
+  width: 100%;
 }
 
 .section {
@@ -32,4 +43,29 @@ button {
 
 .buttons.submit > button:nth-child(1) {
   margin-right: auto;
+}
+
+.representative {
+  flex: 1;
+  position: relative;
+  display: none;
+}
+
+.representative > img {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  max-width: 700px;
+  padding: 2rem;
+  box-sizing: border-box;
+  left: 50%;
+  top: 50%;
+  transform: translateX(-50%) translateY(-50%);
+}
+
+@media screen and (min-width: 992px) {
+  .representative {
+    display: unset;
+  }
 }

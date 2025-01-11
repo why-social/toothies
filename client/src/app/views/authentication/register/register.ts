@@ -57,7 +57,11 @@ export class Register {
         /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d!$%^&*()_+={}\[\]:;"'<>,.?/\\|`~\-]{8,}$/,
       ),
     ],
-    confirm: ["", this.arePasswordsTheSame()],
+    confirm: ["", (): ValidationErrors | null => {
+      this.invalidatePassword();
+
+      return this.passwordsMatch ? null : { arePasswordsTheSame: false };
+    }],
   });
   mail = this.formBuilder.group({
     mail: [
@@ -65,14 +69,6 @@ export class Register {
       Validators.pattern(/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/),
     ],
   });
-
-  arePasswordsTheSame(): ValidatorFn {
-    return (): ValidationErrors | null => {
-      this.invalidatePassword();
-
-      return this.passwordsMatch ? null : { arePasswordsTheSame: false };
-    };
-  }
 
   invalidatePassword(): void {
     if (
@@ -114,9 +110,7 @@ export class Register {
 
             this.registering = false;
           },
-          error: (error) => {
-            console.error("Error registering user: ", error);
-
+          error: () => {
             this.registering = false;
           },
         });

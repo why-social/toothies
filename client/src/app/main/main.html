@@ -4,7 +4,7 @@
     class="logout"
     mat-stroked-button
     (click)="logOut()"
-    [style.display]="isLoginGuardProtected() ? 'flex' : 'none'"
+    [style.display]="isGuardProtected() ? 'flex' : 'none'"
   >
     <mat-icon>logout</mat-icon><span>Log out</span>
   </button>

@@ -158,6 +158,90 @@ const notifyUser = async (message: Buffer) => {
 	}
 }
 
+const notifySubscribedUsers = async (message: Buffer) => {
+	let data, reqId, timestamp;
+	try{
+		const payload = JSON.parse(message.toString());
+		data = payload.data;
+		reqId = payload.timestamp;
+		timestamp = payload.timestamp;
+	} catch (e) {
+		if (e instanceof Error) {
+			console.error(e.message);
+		} else {
+			console.error(e);
+		}
+		console.log(`Malformed request: ${message}`);
+		return;
+	}
+
+	if (!data || !timestamp) {
+		console.error(`Malformed request: ${message}`);
+		return;
+	}
+
+	if(!data.doctorId || !data.startTime || !data.endTime){
+		console.error(`Missing required fields in request: ${message}`);
+		return;
+	}
+
+	const doctorCursor = doctors.aggregate([
+		{ $match: { _id: new ObjectId(data.doctorId) } },
+		{
+			$lookup: {
+				from: "users",
+				localField: "subscribers",
+				foreignField: "_id",
+				as: "subscribers",
+			},
+		},
+	]);
+
+	const doctor = await doctorCursor.next();
+
+	if (!doctor) {
+		console.error(`Doctor not found: ${message}`);
+		return;
+	}
+
+	try {
+		const subscribers = doctor.subscribers;
+
+		if (!subscribers) {
+			console.error(`No subscribed users found for doctor ${doctor.name}`);
+			return;
+		}
+
+		const emailMessage = {
+			subject: "Slot Created",
+			text: `A new slot has been created by Dr. ${doctor.name} from ${data.startTime} to ${data.endTime}`,
+			html: `A new slot has been created by Dr. ${doctor.name} from ${data.startTime} to ${data.endTime}`,
+		};
+
+		for (const user of doctor.subscribers) {
+			try {
+				await sendEmail(
+					user.email,
+					user.name,
+					emailMessage.subject,
+					emailMessage.text,
+					emailMessage.html,
+				);
+				console.log(
+					`Email sent to user: ${user.email}\nEmail text: ${emailMessage.text}`,
+				);
+			} catch (e) {
+				console.error(`Failed to send email to user: ${user.email}`);
+				console.log(e);
+			}
+		}
+	} catch (e) {
+		console.error(`Failed to send email to subscribed users`);
+		console.log(e);
+	}
+
+}
+
 //-------------------- DEFINE BROKER --------------------
 const broker: ServiceBroker = new ServiceBroker(
 	"notifications",
@@ -174,6 +258,7 @@ const broker: ServiceBroker = new ServiceBroker(
 			// TODO: topics must include serviceId
 			broker.subscribe("notifications/doctor", notifyDoctor, false);
 			broker.subscribe("notifications/user", notifyUser, false);
+			broker.subscribe("notifications/subscription/slotCreated", notifySubscribedUsers, false)
 		},
 	},
 );

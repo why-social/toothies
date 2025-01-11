@@ -2,7 +2,6 @@
   display: flex;
   flex-direction: row;
   min-height: 100%;
-  align-content: flex-start;
   align-items: flex-start;
   flex-wrap: wrap;
   padding: 1rem;
@@ -18,6 +17,7 @@
   width: 100% !important;
   position: absolute;
   top: 50%;
+  left: 0;
   transform: translateY(-50%);
   display: flex;
   align-items: center;

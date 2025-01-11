@@ -86,9 +86,6 @@ export class ClinicView implements AfterViewChecked, OnInit {
               this.clinic = null;
             }
           },
-          error: (error) => {
-            console.error('Error fetching clinic: ', error);
-          },
         });
     });
   }
