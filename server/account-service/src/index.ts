@@ -58,7 +58,7 @@ function createDoctorToken(doctor: User) {
   );
 }
 
-const db = new DbManager(process.env.ATLAS_CONN_STR, ["users", "doctors"]);
+const db = new DbManager(process.env.ATLAS_CONN_STR, ["users", "doctors"], { maxPoolSize: 5 });
 db.init()
   .then(() => console.log("Connected to db"))
   .catch(() => {

@@ -23,7 +23,7 @@ const db = new DbManager(process.env.ATLAS_CONN_STR, [
   "doctors",
   "clinics",
   "users",
-]);
+], { maxPoolSize: 5 });
 db.init()
   .then(() => console.log("Connected to db"))
   .catch(() => {
