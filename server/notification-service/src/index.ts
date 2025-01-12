@@ -15,7 +15,7 @@ if (!process.env.MQTT_PASSWORD) {
 	throw new Error("MQTT_PASSWORD is not defined");
 }
 
-const db = new DbManager(process.env.ATLAS_CONN_STR, ["users", "doctors"]);
+const db = new DbManager(process.env.ATLAS_CONN_STR, ["users", "doctors"], { maxPoolSize: 5 });
 db.init()
 	.then(() => {
 		console.log("Connected to db");
@@ -200,12 +200,12 @@ const notifySubscribedUsers = async (message: Buffer) => {
 			]);
 		}, true);
 		const doctor = await doctorCursor.next();
-	
+
 		if (!doctor) {
 			console.error(`Doctor not found: ${message}`);
 			return;
 		}
-		
+
 		const subscribers = doctor.subscribers;
 
 		if (!subscribers) {
