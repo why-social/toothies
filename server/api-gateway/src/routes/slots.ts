@@ -28,14 +28,13 @@ router.post("/slots", authMiddleware, (req: Request, res: Response) => {
       body: req.body,
     },
     {
-      onResponse(mres: MqttResponse) {
-        // todo: get status from response
-        res.status(200).send(mres.data);
+      onResponse(response: MqttResponse) {
+        res.status(response.status || 200).send(response.data);
       },
-      onServiceError(msg: string) {
-        res.status(500).send(msg);
+      onServiceError(message: string) {
+        res.status(500).send(message);
       },
-    },
+    }
   );
 });
 
@@ -61,14 +60,13 @@ router.delete("/slots", authMiddleware, (req: Request, res: Response) => {
       body: req.body,
     },
     {
-      onResponse(mres: MqttResponse) {
-        // todo: get status from response
-        res.status(200).send(mres.data);
+      onResponse(response: MqttResponse) {
+        res.status(response.status || 200).send(response.data);
       },
-      onServiceError(msg: string) {
-        res.status(500).send(msg);
+      onServiceError(message: string) {
+        res.status(500).send(message);
       },
-    },
+    }
   );
 });
 
@@ -94,14 +92,13 @@ router.patch("/slots", authMiddleware, (req: Request, res: Response) => {
       body: req.body,
     },
     {
-      onResponse(mres: MqttResponse) {
-        // todo: get status from response
-        res.status(200).send(mres.data);
+      onResponse(response: MqttResponse) {
+        res.status(response.status || 200).send(response.data);
       },
-      onServiceError(msg: string) {
-        res.status(500).send(msg);
+      onServiceError(message: string) {
+        res.status(500).send(message);
       },
-    },
+    }
   );
 });
 

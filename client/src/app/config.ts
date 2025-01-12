@@ -2,18 +2,23 @@ import {
   ApplicationConfig,
   importProvidersFrom,
   provideZoneChangeDetection,
-} from "@angular/core";
-import { provideRouter } from "@angular/router";
+} from '@angular/core';
+import { provideRouter } from '@angular/router';
 
-import { routes } from "./routes";
-import { provideAnimationsAsync } from "@angular/platform-browser/animations/async";
+import { routes } from './routes';
+import { provideAnimations } from '@angular/platform-browser/animations';
 
-import { provideHttpClient } from "@angular/common/http";
+import {
+  HTTP_INTERCEPTORS,
+  provideHttpClient,
+  withInterceptorsFromDi,
+} from '@angular/common/http';
 
-import { SocketIoModule, SocketIoConfig } from "ngx-socket-io";
+import { SocketIoModule, SocketIoConfig } from 'ngx-socket-io';
+import { HttpResponseInterceptor } from './interceptors/HttpResponseInterceptor';
 
 const socketConfig: SocketIoConfig = {
-  url: "ws://localhost:3000",
+  url: 'ws://localhost:3000',
   options: {},
 };
 
@@ -21,8 +26,13 @@ export const appConfig: ApplicationConfig = {
   providers: [
     provideZoneChangeDetection({ eventCoalescing: true }),
     provideRouter(routes),
-    provideAnimationsAsync(),
-    provideHttpClient(),
+    provideAnimations(),
+    provideHttpClient(withInterceptorsFromDi()),
+    {
+      provide: HTTP_INTERCEPTORS,
+      useClass: HttpResponseInterceptor,
+      multi: true,
+    },
     importProvidersFrom(SocketIoModule.forRoot(socketConfig)),
   ],
 };

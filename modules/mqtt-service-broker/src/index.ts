@@ -25,7 +25,7 @@ export class ServiceBroker {
     name: String,
     address: string,
     options: IClientOptions,
-    lifecycleListener: BrokerLifecycleListener,
+    lifecycleListener: BrokerLifecycleListener
   ) {
     this.name = name;
     this.uuid = String(uniqid());
@@ -74,9 +74,9 @@ export class ServiceBroker {
             (err) => {
               if (err)
                 return console.error(
-                  `Failed to publish message: ${err.message}`,
+                  `Failed to publish message: ${err.message}`
                 );
-            },
+            }
           );
         }, ServiceBroker.HEARTBEAT_INTERVAL);
 
@@ -121,7 +121,7 @@ export class ServiceBroker {
   public subscribe(
     topic: string,
     callback: (message: Buffer) => void,
-    includeId: boolean = true,
+    includeId: boolean = true
   ) {
     if (this.ready) {
       topic = includeId ? `${this.uuid}/${topic}` : topic;
@@ -165,6 +165,7 @@ export class ServiceBroker {
     const res = JSON.stringify({
       reqId,
       timestamp: Date.now(),
+      status: 500,
       data: {
         message: message,
       },

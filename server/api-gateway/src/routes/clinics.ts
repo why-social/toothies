@@ -18,12 +18,11 @@ router.get("/clinics", (req: Request, res: Response) => {
     "clinics/get",
     {},
     {
-      onResponse(mres: MqttResponse) {
-        // todo: get status from response
-        res.status(200).send(mres.data);
+      onResponse(response: MqttResponse) {
+        res.status(response.status || 200).send(response.data);
       },
-      onServiceError(msg: string) {
-        res.status(500).send(msg);
+      onServiceError(message: string) {
+        res.status(500).send(message);
       },
     }
   );
@@ -45,12 +44,11 @@ router.get("/clinics/:id", (req: Request, res: Response) => {
     "clinics/get",
     { clinicId: req.params.id },
     {
-      onResponse(mres: MqttResponse) {
-        // todo: get status from response
-        res.status(200).send(mres.data);
+      onResponse(response: MqttResponse) {
+        res.status(response.status || 200).send(response.data);
       },
-      onServiceError(msg: string) {
-        res.status(500).send(msg);
+      onServiceError(message: string) {
+        res.status(500).send(message);
       },
     }
   );
@@ -92,12 +90,11 @@ router.post("/clinics", authMiddleware, (req: Request, res: Response) => {
       location: req.body?.location,
     },
     {
-      onResponse(mres: MqttResponse) {
-        // todo: get status from response
-        res.status(200).send(mres.data);
+      onResponse(response: MqttResponse) {
+        res.status(response.status || 200).send(response.data);
       },
-      onServiceError(msg: string) {
-        res.status(500).send(msg);
+      onServiceError(message: string) {
+        res.status(500).send(message);
       },
     }
   );
@@ -124,12 +121,11 @@ router.delete("/clinics/:id", authMiddleware, (req: Request, res: Response) => {
     "clinics/delete",
     { clinicId: req.params.id },
     {
-      onResponse(mres: MqttResponse) {
-        // todo: get status from response
-        res.status(200).send(mres.data);
+      onResponse(response: MqttResponse) {
+        res.status(response.status || 200).send(response.data);
       },
-      onServiceError(msg: string) {
-        res.status(500).send(msg);
+      onServiceError(message: string) {
+        res.status(500).send(message);
       },
     }
   );

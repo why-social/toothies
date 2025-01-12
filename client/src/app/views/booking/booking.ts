@@ -60,15 +60,20 @@ export class Booking {
         )
         .subscribe({
           next: (data) => {
-            this.doctorName = data.doctor.name;
-            this.clinicName = data.doctor.clinic.name;
+            if (data && data.doctor) {
+              this.doctorName = data.doctor.name;
+              this.clinicName = data.doctor.clinic.name;
 
-            this.slots = data.slots.map((it: CalendarSlot) => ({
-              doctorId: data.doctor._id,
-              startTime: new Date(it.startTime),
-              endTime: new Date(it.endTime),
-              bookedBy: it.bookedBy,
-            }));
+              this.slots = data.slots.map((it: CalendarSlot) => ({
+                doctorId: data.doctor._id,
+                startTime: new Date(it.startTime),
+                endTime: new Date(it.endTime),
+                bookedBy: it.bookedBy,
+              }));
+            } else {
+              this.doctorName = null;
+              this.clinicName = null;
+            }
           },
           error: () => {
             this.doctorName = null;
@@ -160,8 +165,10 @@ export class Booking {
                   },
                 })
                 .subscribe({
-                  next: () => {
-                    slot.bookedBy = null;
+                  next: (data: any) => {
+                    if (data?.status != 500) {
+                      slot.bookedBy = null;
+                    }
                   },
                 });
             }
@@ -181,8 +188,10 @@ export class Booking {
                 },
               )
               .subscribe({
-                next: () => {
-                  slot.bookedBy = getToken(true).userId;
+                next: (data: any) => {
+                  if (data?.status != 500) {
+                    slot.bookedBy = getToken(true).userId;
+                  }
                 },
               });
           }
@@ -203,8 +212,10 @@ export class Booking {
         },
       )
       .subscribe({
-        next: () => {
-          this.subscribed = true;
+        next: (data: any) => {
+          if (data?.status != 500) {
+            this.subscribed = true;
+          }
         },
       });
   }
@@ -221,11 +232,10 @@ export class Booking {
         },
       )
       .subscribe({
-        next: () => {
-          this.subscribed = false;
-        },
-        error: (error) => {
-          console.error('Error subscribing to doctor: ', error);
+        next: (data: any) => {
+          if (data?.status != 500) {
+            this.subscribed = false;
+          }
         },
       });
   }

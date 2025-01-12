@@ -19,3 +19,4 @@ CMD [ "node", "dist/index.js" ]
 
 # Exposing server port
 EXPOSE 3000
+

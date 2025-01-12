@@ -4,15 +4,12 @@ import { ServicesList } from "../types/ServicesList";
 import { Service } from "../types/Service";
 import { ResponseListener } from "./ResponseListener";
 import { MqttRequest, MqttResponse } from "./MqttMessages";
+import dotenv from "dotenv";
 import uniqid from "uniqid";
 
 export class ServiceBroker {
   private serviceMap: Map<ServiceType, ServicesList> = new Map(); // TODO enum instead of string?
   private static readonly timeoutDuration = 3000;
-  private static readonly mqttOptions: IClientOptions = {
-    username: "service",
-    password: "Ilike2makewalks",
-  };
   private readonly messageListeners: Map<
     string,
     (topic: string, message: Buffer) => void
@@ -21,10 +18,16 @@ export class ServiceBroker {
   private readonly mqttClient: MqttClient;
 
   constructor() {
-    this.mqttClient = mqtt.connect(
-      "tls://0fc2e0e6e10649f790f059e77c606dfe.s1.eu.hivemq.cloud:8883",
-      ServiceBroker.mqttOptions,
-    );
+    dotenv.config();
+
+    if (!process.env.BROKER_ADDR) {
+      throw new Error("BROKER_ADDR is not defined");
+    }
+
+    this.mqttClient = mqtt.connect(process.env.BROKER_ADDR, {
+      username: process.env.MQTT_USERNAME,
+      password: process.env.MQTT_PASSWORD,
+    });
     this.mqttClient.on("error", (error) => {
       console.error("Mqtt error:", error);
       this.mqttClient.end();
@@ -60,7 +63,7 @@ export class ServiceBroker {
       this.mqttClient.off("message", cb);
     } else {
       console.error(
-        "Could not remove listener while unsubscibing from " + topic,
+        "Could not remove listener while unsubscibing from " + topic
       );
     }
     this.messageListeners.delete(topic);
@@ -70,7 +73,7 @@ export class ServiceBroker {
     service: ServiceType,
     topic: string,
     message: Object,
-    cb: ResponseListener,
+    cb: ResponseListener
   ) {
     let retries = 0;
     const servicesList = this.serviceMap.get(service);
@@ -96,7 +99,7 @@ export class ServiceBroker {
         },
         () => {
           console.log(
-            `Request to service ${serviceId} timed out. Redirecting to another service...`,
+            `Request to service ${serviceId} timed out. Redirecting to another service...`
           );
           if (++retries < maxRetries) {
             this.retryRequest(servicesList, publishWithRetry, cb);
@@ -104,7 +107,7 @@ export class ServiceBroker {
             cb.onServiceError("Request timed out after multiple retries");
             console.log("Request timed out after multiple retries\n");
           }
-        },
+        }
       );
 
       this.publishRequest(`${serviceId}/${topic}`, requestMessage, cb);
@@ -153,7 +156,7 @@ export class ServiceBroker {
   private subscribeToResponse(
     reqId: string,
     onResponse: (message: string) => void,
-    onTimeout: () => void,
+    onTimeout: () => void
   ) {
     // handler for receiving a response from a service.
     // expects a response message on the topic 'res/${reqId}'
@@ -183,7 +186,7 @@ export class ServiceBroker {
   private retryRequest(
     servicesList: ServicesList,
     retry: (serviceId: string) => void,
-    cb: ResponseListener,
+    cb: ResponseListener
   ) {
     const newServiceId = servicesList.getRoundRobinService()?.getServiceId();
     if (newServiceId) {
@@ -197,7 +200,7 @@ export class ServiceBroker {
   private publishRequest(
     topic: string,
     message: MqttRequest,
-    cb: ResponseListener,
+    cb: ResponseListener
   ) {
     const payload = JSON.stringify(message);
     this.mqttClient.publish(topic, payload, { qos: 2 }, (err) => {

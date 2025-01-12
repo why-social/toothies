@@ -1,9 +1,10 @@
 import { ServiceBroker } from "@toothies-org/mqtt-service-broker";
-import { MongoClient, ObjectId } from "mongodb";
 import dotenv from "dotenv";
 import { sign, PrivateKey } from "jsonwebtoken";
 import { compare } from "bcrypt-ts";
 import { User } from "./types/User";
+import { DbManager } from "@toothies-org/backup-manager";
+import { DatabaseError } from "@toothies-org/backup-manager/dist/types/databaseError";
 
 dotenv.config();
 if (!process.env.ATLAS_CONN_STR) {
@@ -57,10 +58,13 @@ function createDoctorToken(doctor: User) {
   );
 }
 
-const atlasClient = new MongoClient(process.env.ATLAS_CONN_STR);
-const db = atlasClient.db("primary");
-const users = db.collection("users");
-const doctors = db.collection("doctors");
+const db = new DbManager(process.env.ATLAS_CONN_STR, ["users", "doctors"]);
+db.init()
+  .then(() => console.log("Connected to db"))
+  .catch(() => {
+    throw new Error("Failed to connect to db");
+  });
+
 /*
  * Email regex
  * - Must contain @
@@ -114,29 +118,45 @@ const authenticateUser = async (message: Buffer) => {
     return;
   }
 
-  if (data.personnummer == "admin") {
-    if (process.env.ADMIN_PASSWORD == data.password) {
-      const token = createAdminToken();
-      broker.publishResponse(reqId, { token });
-    } else {
+  try {
+    if (data.personnummer == "admin") {
+      if (process.env.ADMIN_PASSWORD == data.password) {
+        const token = createAdminToken();
+        broker.publishResponse(reqId, { token });
+      } else {
+        broker.publishError(reqId, "User does not exist");
+        console.error(`Failed attempt to login into admin account.`);
+      }
+
+      return;
+    }
+    const user = await db.withConnection(async () => {
+      return db.collections
+        .get("users")
+        .findOne({ personnummer: data.personnummer });
+    }, true);
+    if (!user) {
       broker.publishError(reqId, "User does not exist");
-      console.error(`Failed attempt to login into admin account.`);
+      console.error(`User does not exist: \n${message}`);
+      return;
     }
 
-    return;
-  }
+    if (await compare(data.password, user.passwordHash)) {
+      const token = createUserToken(user as User);
+      broker.publishResponse(reqId, { token });
+    } else {
+      broker.publishError(reqId, "Incorrect password");
+    }
+  } catch (e) {
+    if (e instanceof DatabaseError) {
+      const error = JSON.parse(e.message);
+      error.status = 500;
 
-  const user = await users.findOne({ personnummer: data.personnummer });
-  if (!user) {
-    broker.publishError(reqId, "User does not exist");
-    console.error(`User does not exist: \n${message}`);
-    return;
-  }
-  if (await compare(data.password, user.passwordHash)) {
-    const token = createUserToken(user as User);
-    broker.publishResponse(reqId, { token });
-  } else {
-    broker.publishError(reqId, "Incorrect password");
+      broker.publishResponse(reqId, error);
+    } else {
+      broker.publishError(reqId, `Unable to process request: ${e}`);
+    }
+    console.error("Failed to process request", e);
   }
 };
 
@@ -193,24 +213,38 @@ const createUser = async (message: Buffer) => {
     ?.slice(1)
     .reduce((prev, curr, i, arr) => prev + curr);
 
-  const userExists = await users.findOne({
-    personnummer: pnParsed,
-  });
+  try {
+    const userExists = await db.withConnection(async () => {
+      return db.collections.get("users").findOne({ personnummer: pnParsed });
+    }, true);
 
-  const user = {
-    personnummer: pnParsed,
-    passwordHash: data.passwordHash,
-    name: data.name,
-    email: data.email,
-  };
-  if (!userExists) {
-    users.insertOne(user);
-    const token = createUserToken(user as User);
-    broker.publishResponse(reqId, { token });
-    console.log(`Created user:\n${JSON.stringify(data)}`);
-  } else {
-    broker.publishError(reqId, "User already exists");
-    console.error(`User already exists: \n${message}`);
+    const user = {
+      personnummer: pnParsed,
+      passwordHash: data.passwordHash,
+      name: data.name,
+      email: data.email,
+    };
+    if (!userExists) {
+      await db.withConnection(async () => {
+        return db.collections.get("users").insertOne(user);
+      }, false);
+      const token = createUserToken(user as User);
+      broker.publishResponse(reqId, { token });
+      console.log(`Created user:\n${JSON.stringify(data)}`);
+    } else {
+      broker.publishError(reqId, "User already exists");
+      console.error(`User already exists: \n${message}`);
+    }
+  } catch (e) {
+    if (e instanceof DatabaseError) {
+      const error = JSON.parse(e.message);
+      error.status = 500;
+
+      broker.publishResponse(reqId, error);
+    } else {
+      broker.publishError(reqId, `Unable to process request: ${e}`);
+    }
+    console.error("Failed to process request", e);
   }
 };
 
@@ -243,24 +277,32 @@ const authenticateDoctor = async (message: Buffer) => {
     return;
   }
 
-  const doctor = await doctors.findOne({ email: data.email });
-  if (!doctor) {
-    broker.publishError(reqId, "Doctor does not exist");
-    console.error(`Doctor does not exist: \n${message}`);
-    return;
-  }
+  try {
+    const doctor: any = await db.withConnection(() => {
+      return db.collections.get("doctors").findOne({ email: data.email });
+    }, true);
 
-  if (!doctor.passwordHash) {
-    broker.publishError(reqId, "Doctor has no password");
-    console.error(`Doctor has no password: \n${message}`);
-    return;
-  }
+    if (!doctor) {
+      broker.publishError(reqId, "Doctor does not exist");
+      console.error(`Doctor does not exist: \n${message}`);
+      return;
+    }
 
-  if (await compare(data.password, doctor.passwordHash)) {
-    const token = createDoctorToken(doctor as User);
-    broker.publishResponse(reqId, { token });
-  } else {
-    broker.publishError(reqId, "Incorrect password");
+    if (!doctor.passwordHash) {
+      broker.publishError(reqId, "Doctor has no password");
+      console.error(`Doctor has no password: \n${message}`);
+      return;
+    }
+
+    if (await compare(data.password, doctor.passwordHash)) {
+      const token = createDoctorToken(doctor as User);
+      broker.publishResponse(reqId, { token });
+    } else {
+      broker.publishError(reqId, "Incorrect password");
+    }
+  } catch (e) {
+    broker.publishError(reqId, `Error: ${e}`);
+    console.error(e);
   }
 };
 
@@ -277,7 +319,6 @@ const broker: ServiceBroker = new ServiceBroker(
       process.exit(0);
     },
     onConnected() {
-      // TODO: topics must include serviceId
       broker.subscribe("login", authenticateUser);
       broker.subscribe("register", createUser);
       broker.subscribe("doctorLogin", authenticateDoctor);
