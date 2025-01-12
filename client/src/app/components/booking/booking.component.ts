@@ -48,7 +48,7 @@ export class BookingComponent {
       .subscribe((result) => {
         if (result == 'success' && getToken()) {
           this.http
-            .delete(`http://localhost:3000/appointments`, {
+            .delete(`http://${import.meta.env['NG_APP_API_GATEWAY_ADDRESS'] || 'localhost:3000'}/appointments`, {
               headers: new HttpHeaders().set(
                 'Authorization',
                 `Bearer ${getToken()}`,

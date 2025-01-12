@@ -50,7 +50,7 @@ export class Booking {
 
       this.http
         .get<any>(
-          `http://localhost:3000/appointments?doctorId=${this.doctorId}`,
+          `http://${import.meta.env['NG_APP_API_GATEWAY_ADDRESS'] || 'localhost:3000'}/appointments?doctorId=${this.doctorId}`,
           {
             headers: new HttpHeaders().set(
               'Authorization',
@@ -83,7 +83,7 @@ export class Booking {
 
       this.http
         .get<any>(
-          `http://localhost:3000/subscriptions/doctors/${this.doctorId}`,
+          `http://${import.meta.env['NG_APP_API_GATEWAY_ADDRESS'] || 'localhost:3000'}/subscriptions/doctors/${this.doctorId}`,
           {
             headers: new HttpHeaders().set(
               'Authorization',
@@ -93,8 +93,10 @@ export class Booking {
         )
         .subscribe({
           next: (data) => {
-            if (data) {
+            if (data && data.subscribed != undefined) {
               this.subscribed = data.subscribed;
+            } else {
+              this.subscribed = false;
             }
           },
         });
@@ -154,16 +156,19 @@ export class Booking {
           if (slot.bookedBy) {
             if (slot.bookedBy == getToken(true).userId) {
               this.http
-                .delete(`http://localhost:3000/appointments`, {
-                  headers: new HttpHeaders().set(
-                    'Authorization',
-                    `Bearer ${getToken()}`,
-                  ),
-                  body: {
-                    doctorId: this.doctorId,
-                    startTime: slot.startTime,
+                .delete(
+                  `http://${import.meta.env['NG_APP_API_GATEWAY_ADDRESS'] || 'localhost:3000'}/appointments`,
+                  {
+                    headers: new HttpHeaders().set(
+                      'Authorization',
+                      `Bearer ${getToken()}`,
+                    ),
+                    body: {
+                      doctorId: this.doctorId,
+                      startTime: slot.startTime,
+                    },
                   },
-                })
+                )
                 .subscribe({
                   next: (data: any) => {
                     if (data?.status != 500) {
@@ -175,7 +180,7 @@ export class Booking {
           } else {
             this.http
               .post(
-                `http://localhost:3000/appointments`,
+                `http://${import.meta.env['NG_APP_API_GATEWAY_ADDRESS'] || 'localhost:3000'}/appointments`,
                 {
                   doctorId: this.doctorId,
                   startTime: slot.startTime,
@@ -202,7 +207,7 @@ export class Booking {
   protected subscribe() {
     this.http
       .post<any>(
-        `http://localhost:3000/subscriptions/doctors/${this.doctorId}`,
+        `http://${import.meta.env['NG_APP_API_GATEWAY_ADDRESS'] || 'localhost:3000'}/subscriptions/doctors/${this.doctorId}`,
         null,
         {
           headers: new HttpHeaders().set(
@@ -223,7 +228,7 @@ export class Booking {
   protected unsubscribe() {
     this.http
       .delete<any>(
-        `http://localhost:3000/subscriptions/doctors/${this.doctorId}`,
+        `http://${import.meta.env['NG_APP_API_GATEWAY_ADDRESS'] || 'localhost:3000'}/subscriptions/doctors/${this.doctorId}`,
         {
           headers: new HttpHeaders().set(
             'Authorization',

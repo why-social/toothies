@@ -56,11 +56,16 @@ export class Login {
     ) {
       this.logging = true;
 
+      console.log(import.meta.env['API_GATEWAY_ADDRESS']);
+
       this.http
-        .post(`http://localhost:3000/auth/login`, {
-          personnummer: this.form.controls['personnummer'].value,
-          password: this.form.controls['password'].value,
-        })
+        .post(
+          `http://${import.meta.env['NG_APP_API_GATEWAY_ADDRESS'] || 'localhost:3000'}/auth/login`,
+          {
+            personnummer: this.form.controls['personnummer'].value,
+            password: this.form.controls['password'].value,
+          },
+        )
         .subscribe({
           next: (res: any) => {
             if (res?.token) {
