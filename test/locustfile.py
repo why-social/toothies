@@ -52,7 +52,7 @@ class BookingTests(HttpUser):
             slots += [start + j*step for j in range(0, (MAX_HOUR-MIN_HOUR)*60//STEP_MINUTES)]
 
         inserted = db["slots"].insert_many([
-            {"doctorId": id, "startTime": slot, "endTime": slot + step}
+            {"doctorId": id, "startTime": slot, "endTime": slot + step, "stressTest": True}
             for slot in slots
         ]).inserted_ids
 
@@ -88,9 +88,12 @@ class BookingTests(HttpUser):
         if BookingTests.db_conn and BookingTests.doctor_id:
             db = BookingTests.db_conn['primary']
 
-            deleted_slots = db["slots"].delete_many({"doctorId": BookingTests.doctor_id}).deleted_count
-            deleted_docs = db["doctors"].delete_one({"_id": BookingTests.doctor_id}).deleted_count
-            print(f"Deleted {deleted_docs} doctor ({BookingTests.doctor_id}) and {deleted_slots} slots")
+            deleted_docs = db["doctors"].delete_many({"name": "STRESS TEST"}).deleted_count
+            deleted_slots = db["slots"].delete_many({"stressTest": True}).deleted_count
+            print(f"Deleted {deleted_docs} doctors ({BookingTests.doctor_id}) and {deleted_slots} slots")
+            deleted_users = db["users"].delete_many({"name": "STRESS TEST"}).deleted_count
+            print(f"Deleted {deleted_users} users")
+
             BookingTests.db_conn.close()
             print("Closed DB connection")
         elif BookingTests.db_conn:
@@ -108,15 +111,6 @@ class BookingTests(HttpUser):
         }
         res = self.client.post("/auth/register", json=user_data)
         self.token = res.json()["token"]
-
-    def on_stop(self):
-        if BookingTests.db_conn and self.pn:
-            deleted = BookingTests.db_conn['primary']['users'].delete_one({"personnummer": self.pn}).deleted_count
-            print(f"Deleted {deleted} user ({self.pn})")
-        elif BookingTests.db_conn:
-            print("No personnummer found")
-        else:
-            print("No DB connection")
 
     @task
     def create_booking(self):
