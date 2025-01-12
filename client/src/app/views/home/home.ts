@@ -31,55 +31,63 @@ export class Home {
   protected fetchDoctors(): void {
     this.doctors = undefined;
 
-    this.http.get<Array<any>>(`http://localhost:3000/doctors`).subscribe({
-      next: (data) => {
-        this.doctors = data
-          .filter((el) => el.name && el._id && el.type)
-          .map(
-            (it) =>
-              ({
-                name: it.name,
-                _id: it._id,
-                type: it.type,
-                clinic: it.clinic,
-              }) as Doctor,
-          );
-      },
-      error: () => {
-        this.doctors = null;
-      },
-    });
+    this.http
+      .get<
+        Array<any>
+      >(`http://${import.meta.env['NG_APP_API_GATEWAY_ADDRESS'] || 'localhost:3000'}/doctors`)
+      .subscribe({
+        next: (data) => {
+          this.doctors = data
+            .filter((el) => el.name && el._id && el.type)
+            .map(
+              (it) =>
+                ({
+                  name: it.name,
+                  _id: it._id,
+                  type: it.type,
+                  clinic: it.clinic,
+                }) as Doctor,
+            );
+        },
+        error: () => {
+          this.doctors = null;
+        },
+      });
   }
 
   protected fetchClinics(): void {
     this.clinics = undefined;
 
-    this.http.get<Array<any>>(`http://localhost:3000/clinics`).subscribe({
-      next: (data) => {
-        this.clinics = data
-          .filter(
-            (el) =>
-              el.name &&
-              el._id &&
-              el.location &&
-              el.location.latitude &&
-              el.location.longitude &&
-              el.location.city &&
-              el.location.address,
-          )
-          .map(
-            (it) =>
-              ({
-                name: it.name,
-                _id: it._id,
-                location: it.location,
-              }) as Clinic,
-          );
-      },
-      error: () => {
-        this.clinics = null;
-      },
-    });
+    this.http
+      .get<
+        Array<any>
+      >(`http://${import.meta.env['NG_APP_API_GATEWAY_ADDRESS'] || 'localhost:3000'}/clinics`)
+      .subscribe({
+        next: (data) => {
+          this.clinics = data
+            .filter(
+              (el) =>
+                el.name &&
+                el._id &&
+                el.location &&
+                el.location.latitude &&
+                el.location.longitude &&
+                el.location.city &&
+                el.location.address,
+            )
+            .map(
+              (it) =>
+                ({
+                  name: it.name,
+                  _id: it._id,
+                  location: it.location,
+                }) as Clinic,
+            );
+        },
+        error: () => {
+          this.clinics = null;
+        },
+      });
   }
 
   protected fetchBookings(): void {
@@ -89,12 +97,15 @@ export class Home {
 
     if (userID) {
       this.http
-        .get<Array<any>>(`http://localhost:3000/appointments/user`, {
-          headers: new HttpHeaders().set(
-            'Authorization',
-            `Bearer ${getToken()}`,
-          ),
-        })
+        .get<Array<any>>(
+          `http://${import.meta.env['NG_APP_API_GATEWAY_ADDRESS'] || 'localhost:3000'}/appointments/user`,
+          {
+            headers: new HttpHeaders().set(
+              'Authorization',
+              `Bearer ${getToken()}`,
+            ),
+          },
+        )
         .subscribe({
           next: (data) => {
             this.bookings = data

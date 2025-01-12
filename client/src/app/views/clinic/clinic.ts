@@ -42,7 +42,7 @@ export class ClinicView implements AfterViewChecked, OnInit {
       }
 
       this.http
-        .get<Array<any>>(`http://localhost:3000/clinics/${identifier}`)
+        .get<Array<any>>(`http://${import.meta.env['NG_APP_API_GATEWAY_ADDRESS'] || 'localhost:3000'}/clinics/${identifier}`)
         .subscribe({
           next: (data: any) => {
             data = data[0];

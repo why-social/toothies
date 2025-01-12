@@ -46,57 +46,65 @@ export class Admin implements OnInit, AfterViewInit {
   protected fetchClinics(): void {
     this.clinics = undefined;
 
-    this.http.get<Array<any>>(`http://localhost:3000/clinics`).subscribe({
-      next: (data) => {
-        this.clinics = data
-          .filter(
-            (el) =>
-              el.name &&
-              el._id &&
-              el.location &&
-              el.location.latitude &&
-              el.location.longitude &&
-              el.location.city &&
-              el.location.address,
-          )
-          .map(
-            (it) =>
-              ({
-                name: it.name,
-                _id: it._id,
-                location: it.location,
-              }) as Clinic,
-          );
-      },
-      error: (error) => {
-        this.clinics = null;
+    this.http
+      .get<
+        Array<any>
+      >(`http://${import.meta.env['NG_APP_API_GATEWAY_ADDRESS'] || 'localhost:3000'}/clinics`)
+      .subscribe({
+        next: (data) => {
+          this.clinics = data
+            .filter(
+              (el) =>
+                el.name &&
+                el._id &&
+                el.location &&
+                el.location.latitude &&
+                el.location.longitude &&
+                el.location.city &&
+                el.location.address,
+            )
+            .map(
+              (it) =>
+                ({
+                  name: it.name,
+                  _id: it._id,
+                  location: it.location,
+                }) as Clinic,
+            );
+        },
+        error: (error) => {
+          this.clinics = null;
 
-        console.error('Error fetching clinics: ', error);
-      },
-    });
+          console.error('Error fetching clinics: ', error);
+        },
+      });
   }
 
   protected fetchDoctors(): void {
     this.doctors = undefined;
 
-    this.http.get<Array<any>>(`http://localhost:3000/doctors`).subscribe({
-      next: (data) => {
-        this.doctors = data
-          .filter((el) => el.name && el._id && el.clinic)
-          .map(
-            (it) =>
-              ({
-                name: it.name,
-                _id: it._id,
-                clinic: it.clinic,
-              }) as Doctor,
-          );
-      },
-      error: (error) => {
-        this.doctors = null;
+    this.http
+      .get<
+        Array<any>
+      >(`http://${import.meta.env['NG_APP_API_GATEWAY_ADDRESS'] || 'localhost:3000'}/doctors`)
+      .subscribe({
+        next: (data) => {
+          this.doctors = data
+            .filter((el) => el.name && el._id && el.clinic)
+            .map(
+              (it) =>
+                ({
+                  name: it.name,
+                  _id: it._id,
+                  clinic: it.clinic,
+                }) as Doctor,
+            );
+        },
+        error: (error) => {
+          this.doctors = null;
 
-        console.error('Error fetching doctors: ', error);
-      },
-    });
+          console.error('Error fetching doctors: ', error);
+        },
+      });
   }
 }

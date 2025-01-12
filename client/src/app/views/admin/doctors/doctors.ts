@@ -135,9 +135,15 @@ export class AdminDoctors implements OnInit {
     }
 
     this.http
-      .delete<Array<any>>(`http://localhost:3000/doctors/${identifier}`, {
-        headers: new HttpHeaders().set('Authorization', `Bearer ${getToken()}`),
-      })
+      .delete<Array<any>>(
+        `http://${import.meta.env['NG_APP_API_GATEWAY_ADDRESS'] || 'localhost:3000'}/doctors/${identifier}`,
+        {
+          headers: new HttpHeaders().set(
+            'Authorization',
+            `Bearer ${getToken()}`,
+          ),
+        },
+      )
       .subscribe({
         next: (res: any) => {
           if (res?.deletedCount > 0) {
@@ -175,7 +181,7 @@ export class AdminDoctors implements OnInit {
 
     this.http
       .post<Array<any>>(
-        `http://localhost:3000/doctors/`,
+        `http://${import.meta.env['NG_APP_API_GATEWAY_ADDRESS'] || 'localhost:3000'}/doctors/`,
         {
           name: doctorData.name,
           type: doctorData.type,

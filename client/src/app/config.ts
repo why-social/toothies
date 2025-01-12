@@ -18,7 +18,7 @@ import { SocketIoModule, SocketIoConfig } from 'ngx-socket-io';
 import { HttpResponseInterceptor } from './interceptors/HttpResponseInterceptor';
 
 const socketConfig: SocketIoConfig = {
-  url: 'ws://localhost:3000',
+  url: `ws://${import.meta.env['NG_APP_API_GATEWAY_ADDRESS'] || 'localhost:3000'}`,
   options: {},
 };
 

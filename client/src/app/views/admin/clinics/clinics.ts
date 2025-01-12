@@ -95,9 +95,15 @@ export class AdminClinics implements OnInit {
     }
 
     this.http
-      .delete<Array<any>>(`http://localhost:3000/clinics/${identifier}`, {
-        headers: new HttpHeaders().set('Authorization', `Bearer ${getToken()}`),
-      })
+      .delete<Array<any>>(
+        `http://${import.meta.env['NG_APP_API_GATEWAY_ADDRESS'] || 'localhost:3000'}/clinics/${identifier}`,
+        {
+          headers: new HttpHeaders().set(
+            'Authorization',
+            `Bearer ${getToken()}`,
+          ),
+        },
+      )
       .subscribe({
         next: (res: any) => {
           if (res?.deletedCount > 0) {
@@ -135,7 +141,7 @@ export class AdminClinics implements OnInit {
 
     this.http
       .post<Array<any>>(
-        `http://localhost:3000/clinics/`,
+        `http://${import.meta.env['NG_APP_API_GATEWAY_ADDRESS'] || 'localhost:3000'}/clinics/`,
         {
           name: clinicData.name,
           location: {
