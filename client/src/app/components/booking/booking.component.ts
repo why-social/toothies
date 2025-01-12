@@ -59,8 +59,10 @@ export class BookingComponent {
               },
             })
             .subscribe({
-              next: () => {
-                this.cancelEvent.emit();
+              next: (data: any) => {
+                if (data?.status != 500) {
+                  this.cancelEvent.emit();
+                }
               },
             });
         }

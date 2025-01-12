@@ -39,7 +39,7 @@ header > .back mat-icon {
 }
 
 .unavailable-notification {
-  z-index: 10000000;
+  z-index: 100000000;
   position: fixed;
   width: calc(396px);
   max-width: calc(100% - 2rem);
@@ -55,7 +55,7 @@ header > .back mat-icon {
   margin-bottom: 1rem;
   margin-top: 1rem;
   left: 50%;
-  bottom: 0;
+  top: 0;
   transform: translateX(-50%);
   box-shadow: 0px 0px 20px rgba(0, 0, 0, 0.7);
 }

@@ -1,4 +1,11 @@
-import { Component, inject, OnInit } from '@angular/core';
+import {
+  AfterViewInit,
+  Component,
+  ElementRef,
+  inject,
+  OnInit,
+  ViewChild,
+} from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { Router } from '@angular/router';
 import { MatIcon } from '@angular/material/icon';
@@ -12,11 +19,12 @@ import { HttpResponseInterceptor } from '../interceptors/HttpResponseInterceptor
   styleUrl: './main.css',
   imports: [RouterOutlet, MatIcon, MatButtonModule],
 })
-export class Main implements OnInit {
+export class Main implements OnInit, AfterViewInit {
   private static readonly LOCAL_STORAGE_WRITE_KEY =
     'writeModeNotificationTimeout';
 
   protected router = inject(Router);
+  @ViewChild('warning', { static: false }) warning!: ElementRef;
 
   protected inWriteOnlyMode: boolean;
 
@@ -47,6 +55,18 @@ export class Main implements OnInit {
         localStorage.removeItem(Main.LOCAL_STORAGE_WRITE_KEY);
       }
     });
+  }
+
+  ngAfterViewInit(): void {
+    const header = document.getElementsByTagName('header')[0];
+
+    if (header) {
+      this.warning.nativeElement.style.top = `calc(2rem + ${header.clientHeight}px)`;
+
+      header.addEventListener('resize', () => {
+        this.warning.nativeElement.style.top = `calc(2rem + ${header.clientHeight}px)`;
+      });
+    }
   }
 
   logOut() {
