@@ -1,0 +1,5 @@
+dash==2.18.2
+pandas==2.2.3
+python-dotenv==1.0.1
+paho-mqtt==2.1.0
+gunicorn==23.0.0

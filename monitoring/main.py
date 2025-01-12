@@ -261,6 +261,8 @@ def update_responses_graph(data, relayout_data):
 
     return fig
 
+server = app.server  # This line is crucial for Gunicorn
+
 if __name__ == '__main__':
     mqtt_thread = threading.Thread(target=start_mqtt)
     mqtt_thread.daemon = True
