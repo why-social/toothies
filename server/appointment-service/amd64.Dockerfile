@@ -1,11 +1,6 @@
-# Fetching the minified node image on apline linux
 FROM node:slim
 
-# Declaring env
-ENV NODE_ENV development
-
-# Setting up the work directory
-WORKDIR /account-service
+WORKDIR /appointment-service
 
 # Import mongodb public key
 RUN apt-get update
@@ -31,4 +26,4 @@ RUN npm run build
 CMD [ "sh", "-c", "mongod --bind_ip_all --dbpath /data/db & node dist/index.js" ]
 
 # Exposing server port
-EXPOSE 3002
+EXPOSE 3001
