@@ -244,16 +244,20 @@ mqttClient.on("message", async (topic, message) => {
     }
 
     case "appointments": {
-      if (!action) {
-        console.error("Invalid query:");
-        console.log(payload);
-        break;
+      try {
+        if (!action) {
+          console.error("Invalid query:");
+          console.log(payload);
+          break;
+        }
+
+        if (data.doctorId) payload.data.doctorId = new ObjectId(data.doctorId);
+        if (data.userId) payload.data.userId = new ObjectId(data.userId);
+
+        await handleAppointmentsRequest(payload);
+      } catch (e) {
+        publishError(payload.reqId, e);
       }
-
-      if (data.doctorId) payload.data.doctorId = new ObjectId(data.doctorId);
-      if (data.userId) payload.data.userId = new ObjectId(data.userId);
-
-      await handleAppointmentsRequest(payload);
       break;
     }
 
@@ -285,7 +289,7 @@ mqttClient.on("message", async (topic, message) => {
               return db.collections.get("doctors").insertOne({
                 name: data.name,
                 type: data.type,
-                clinic: data.clinic,
+                clinic: new ObjectId(data.clinic),
                 email: data.email,
                 passwordHash: data.passwordHash,
               });
@@ -763,10 +767,10 @@ async function handleSlotRequest(payload: any) {
     return;
   }
 
-  const startDate = new Date(Number(payload.data.body.startDate));
-  const doctorId = new ObjectId(payload.data.doctorId);
-
   try {
+    const startDate = new Date(Number(payload.data.body.startDate));
+    const doctorId = new ObjectId(payload.data.doctorId);
+
     const doctor = await db.withConnection(() => {
       return db.collections.get("doctors").findOne({ _id: doctorId });
     }, true);
@@ -774,46 +778,42 @@ async function handleSlotRequest(payload: any) {
       publishResponse(payload.reqId, { message: "Doctor not found" });
       return;
     }
-  } catch (e) {
-    publishError(payload.reqId, e);
-  }
 
-  // Check if the start time is before the current timme
-  if (payload.data.body.startDate <= new Date()) {
-    publishResponse(payload.reqId, { message: "Invalid time range" });
-    return;
-  }
-
-  // Check if the time is between 8 am and 8 pm
-  if (startDate.getHours() < 8 || startDate.getHours() > 20) {
-    publishResponse(payload.reqId, { message: "Invalid time range" });
-    return;
-  }
-
-  let endDate: any;
-
-  if (payload.data.body.endDate) {
-    endDate = new Date(Number(payload.data.body.endDate));
-
-    // Check if the start time is before the end time
-    if (payload.data.body.startDate >= payload.data.body.endDate) {
-      publishResponse(payload.reqId, { message: "Invalid time range" });
-      return;
-    }
-
-    // Check if the start time is before the current time
+    // Check if the start time is before the current timme
     if (payload.data.body.startDate <= new Date()) {
       publishResponse(payload.reqId, { message: "Invalid time range" });
       return;
     }
 
-    // Check if start time and end time are in the same day
-    if (startDate.getDate() != endDate.getDate()) {
+    // Check if the time is between 8 am and 8 pm
+    if (startDate.getHours() < 8 || startDate.getHours() > 20) {
       publishResponse(payload.reqId, { message: "Invalid time range" });
       return;
     }
 
-    try {
+    let endDate: any;
+
+    if (payload.data.body.endDate) {
+      endDate = new Date(Number(payload.data.body.endDate));
+
+      // Check if the start time is before the end time
+      if (payload.data.body.startDate >= payload.data.body.endDate) {
+        publishResponse(payload.reqId, { message: "Invalid time range" });
+        return;
+      }
+
+      // Check if the start time is before the current time
+      if (payload.data.body.startDate <= new Date()) {
+        publishResponse(payload.reqId, { message: "Invalid time range" });
+        return;
+      }
+
+      // Check if start time and end time are in the same day
+      if (startDate.getDate() != endDate.getDate()) {
+        publishResponse(payload.reqId, { message: "Invalid time range" });
+        return;
+      }
+
       // Check if the slot already exists
       const slotExists = await db.withConnection(() => {
         return db.collections.get("slots").findOne({
@@ -851,29 +851,29 @@ async function handleSlotRequest(payload: any) {
         });
         return;
       }
-    } catch (e) {
-      publishError(payload.reqId, e);
     }
-  }
 
-  switch (payload.action) {
-    case "create":
-      if (!endDate) {
-        publishResponse(payload.reqId, { message: "Invalid request" });
-        return;
-      }
-      createSlot(payload, doctorId, startDate, endDate);
-      break;
-    case "delete":
-      deleteSlot(payload, doctorId, startDate);
-      break;
-    case "edit":
-      if (!endDate) {
-        publishResponse(payload.reqId, { message: "Invalid request" });
-        return;
-      }
-      editSlot(payload, doctorId, startDate, endDate);
-      break;
+    switch (payload.action) {
+      case "create":
+        if (!endDate) {
+          publishResponse(payload.reqId, { message: "Invalid request" });
+          return;
+        }
+        createSlot(payload, doctorId, startDate, endDate);
+        break;
+      case "delete":
+        deleteSlot(payload, doctorId, startDate);
+        break;
+      case "edit":
+        if (!endDate) {
+          publishResponse(payload.reqId, { message: "Invalid request" });
+          return;
+        }
+        editSlot(payload, doctorId, startDate, endDate);
+        break;
+    }
+  } catch (e) {
+    publishError(payload.reqId, e);
   }
 }
 
@@ -994,16 +994,16 @@ async function editSlot(
 }
 
 async function getAppointmentsForDoctorOnDate(payload: any) {
-  const doctorId = new ObjectId(payload.data.doctorId);
-  const date = new Date(payload.data.date);
-
-  // Set the start of the day (00:00:00)
-  const startOfDay = new Date(date.setHours(0, 0, 0, 0));
-
-  // Set the end of the day (23:59:59)
-  const endOfDay = new Date(date.setHours(23, 59, 59, 999));
-
   try {
+    const doctorId = new ObjectId(payload.data.doctorId);
+    const date = new Date(payload.data.date);
+
+    // Set the start of the day (00:00:00)
+    const startOfDay = new Date(date.setHours(0, 0, 0, 0));
+
+    // Set the end of the day (23:59:59)
+    const endOfDay = new Date(date.setHours(23, 59, 59, 999));
+
     const dateAppointments: any = await db.withConnection(() => {
       return db.collections
         .get("slots")
@@ -1047,58 +1047,62 @@ async function getAppointmentsForDoctorOnDate(payload: any) {
 }
 
 async function getAppointmentsForDoctorUpcoming(payload: any) {
-  const doctorId = new ObjectId(payload.data.doctorId);
-  const startDate = new Date();
+  try {
+    const doctorId = new ObjectId(payload.data.doctorId);
+    const startDate = new Date();
 
-  const upcomingAppointments: any = await db.withConnection(() => {
-    return db.collections
-      .get("slots")
-      .aggregate([
-        {
-          $match: {
-            doctorId: doctorId,
-            startTime: { $gte: startDate },
+    const upcomingAppointments: any = await db.withConnection(() => {
+      return db.collections
+        .get("slots")
+        .aggregate([
+          {
+            $match: {
+              doctorId: doctorId,
+              startTime: { $gte: startDate },
+            },
           },
-        },
-        {
-          $lookup: {
-            from: "users",
-            localField: "bookedBy",
-            foreignField: "_id",
-            as: "patientName",
+          {
+            $lookup: {
+              from: "users",
+              localField: "bookedBy",
+              foreignField: "_id",
+              as: "patientName",
+            },
           },
-        },
-        {
-          $unwind: "$patientName",
-        },
-        {
-          $project: {
-            startTime: 1,
-            endTime: 1,
-            doctorId: 1,
-            bookedBy: 1,
-            patientName: "$patientName.name",
+          {
+            $unwind: "$patientName",
           },
-        },
-        {
-          $sort: { startTime: 1 },
-        },
-        {
-          $limit: 200,
-        },
-      ])
-      .toArray();
-  }, true);
+          {
+            $project: {
+              startTime: 1,
+              endTime: 1,
+              doctorId: 1,
+              bookedBy: 1,
+              patientName: "$patientName.name",
+            },
+          },
+          {
+            $sort: { startTime: 1 },
+          },
+          {
+            $limit: 200,
+          },
+        ])
+        .toArray();
+    }, true);
 
-  publishResponse(payload.reqId, upcomingAppointments);
+    publishResponse(payload.reqId, upcomingAppointments);
+  } catch (e) {
+    publishError(payload.reqId, e);
+  }
 }
 
 async function getAppointmentsForDoctorPerPatient(payload: any) {
-  const reqId = payload.reqId;
-  const doctorId = new ObjectId(payload.data.doctorId);
-  const patientName = payload.data.patientName;
-
   try {
+    const reqId = payload.reqId;
+    const doctorId = new ObjectId(payload.data.doctorId);
+    const patientName = payload.data.patientName;
+
     const patients: Array<any> = await db.withConnection(() => {
       return db.collections.get("users").find({ name: patientName }).toArray();
     }, true);
@@ -1135,10 +1139,10 @@ async function getAppointmentsForDoctorPerPatient(payload: any) {
 }
 
 async function getAppointmentsForUser(payload: any) {
-  const reqId = payload.reqId;
-  const userId = new ObjectId(payload.data.userId);
-
   try {
+    const reqId = payload.reqId;
+    const userId = new ObjectId(payload.data.userId);
+
     const userAppointments: Array<any> = await db.withConnection(() => {
       return db.collections
         .get("slots")

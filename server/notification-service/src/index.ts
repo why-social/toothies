@@ -185,27 +185,27 @@ const notifySubscribedUsers = async (message: Buffer) => {
 		return;
 	}
 
-	const doctorCursor: any = await db.withConnection(() => {
-		return db.collections.get("doctors").aggregate([
-			{ $match: { _id: new ObjectId(data.doctorId) } },
-			{
-				$lookup: {
-					from: "users",
-					localField: "subscribers",
-					foreignField: "_id",
-					as: "subscribers",
-				},
-			},
-		]);
-	}, true);
-	const doctor = await doctorCursor.next();
-
-	if (!doctor) {
-		console.error(`Doctor not found: ${message}`);
-		return;
-	}
-
 	try {
+		const doctorCursor: any = await db.withConnection(() => {
+			return db.collections.get("doctors").aggregate([
+				{ $match: { _id: new ObjectId(data.doctorId) } },
+				{
+					$lookup: {
+						from: "users",
+						localField: "subscribers",
+						foreignField: "_id",
+						as: "subscribers",
+					},
+				},
+			]);
+		}, true);
+		const doctor = await doctorCursor.next();
+	
+		if (!doctor) {
+			console.error(`Doctor not found: ${message}`);
+			return;
+		}
+		
 		const subscribers = doctor.subscribers;
 
 		if (!subscribers) {

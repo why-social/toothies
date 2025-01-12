@@ -3,7 +3,6 @@ import { broker } from "../index";
 import { ServiceType } from "../types/ServiceType";
 import { MqttResponse } from "../services/MqttMessages";
 import { authMiddleware } from "../middleware/auth";
-import { ObjectId } from "mongodb";
 
 const router = Router();
 
