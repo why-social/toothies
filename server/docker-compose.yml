@@ -7,7 +7,9 @@ services:
       - "3000:3000"
 
   appointment-service:
-    build: ./appointment-service
+    build:
+      context: ./appointment-service
+      dockerfile: "${DOCKER_ARCH}.Dockerfile"
     image: appointment-service
     ports:
       - "3001"
@@ -17,13 +19,17 @@ services:
       replicas: 1
 
   account-service:
-    build: ./account-service
+    build:
+      context: ./account-service
+      dockerfile: "${DOCKER_ARCH}.Dockerfile"
     image: account-service
     ports:
       - "3002"
 
   notification-service:
-    build: ./notification-service
+    build:
+      context: ./notification-service
+      dockerfile: "${DOCKER_ARCH}.Dockerfile"
     image: notification-service
     ports:
       - "3003"
