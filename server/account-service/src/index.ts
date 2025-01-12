@@ -58,7 +58,9 @@ function createDoctorToken(doctor: User) {
   );
 }
 
-const db = new DbManager(process.env.ATLAS_CONN_STR, ["users", "doctors"], { maxPoolSize: 5 });
+const db = new DbManager(process.env.ATLAS_CONN_STR, ["users", "doctors"], {
+  maxPoolSize: 5,
+});
 db.init()
   .then(() => console.log("Connected to db"))
   .catch(() => {
@@ -130,6 +132,9 @@ const authenticateUser = async (message: Buffer) => {
 
       return;
     }
+
+    data.personnummer = shortenPersonnummer(data.personnummer);
+
     const user = await db.withConnection(async () => {
       return db.collections
         .get("users")
@@ -305,6 +310,20 @@ const authenticateDoctor = async (message: Buffer) => {
     console.error(e);
   }
 };
+
+function shortenPersonnummer(personnummer: string) {
+  const cleanedPersonnummer = personnummer.replace(/\D/g, "");
+
+  if (cleanedPersonnummer.length === 12) {
+    return cleanedPersonnummer.substring(2);
+  }
+
+  if (cleanedPersonnummer.length === 10) {
+    return cleanedPersonnummer;
+  }
+
+  throw new Error("Invalid personnummer format");
+}
 
 // -------------------- DEFINE BROKER --------------------
 const broker: ServiceBroker = new ServiceBroker(

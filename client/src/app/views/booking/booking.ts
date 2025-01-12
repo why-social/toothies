@@ -93,8 +93,10 @@ export class Booking {
         )
         .subscribe({
           next: (data) => {
-            if (data) {
+            if (data && data.subscribed != undefined) {
               this.subscribed = data.subscribed;
+            } else {
+              this.subscribed = false;
             }
           },
         });
